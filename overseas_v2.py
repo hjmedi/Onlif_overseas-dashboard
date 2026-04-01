@@ -152,8 +152,6 @@ else:
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 
                 table_df = n_df.sort_values('매출액_숫자', ascending=False)
-                
-                # 🔥 [추가] 총 합계 행 추가 로직
                 total_sum = table_df['매출액_숫자'].sum()
                 total_row = pd.DataFrame([{group_col: '[ 총 합계 ]', '매출액_숫자': total_sum}])
                 table_df = pd.concat([table_df, total_row], ignore_index=True)
@@ -175,7 +173,9 @@ else:
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto'))
             tot = df_main.groupby(['월순서', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('월순서')
             fig.add_trace(go.Scatter(x=tot['매출월'], y=tot['매출액_숫자'], name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot['매출액_숫자']], textposition="top center"))
-            st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}), use_container_width=True)
+            
+            # 🔥 폭 70% 조정 (bargap=0.45)
+            st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
     # ==========================================================
     # --- 메뉴 2: 수수료 매출 (에이전트별) ---
@@ -236,7 +236,9 @@ else:
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=agent, text=agent, textposition='auto'))
             total_cline = trend_data.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).dropna()
             fig_ctrend.add_trace(go.Scatter(x=total_cline.index, y=total_cline.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline.values], textposition="top center"))
-            st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}), use_container_width=True)
+            
+            # 🔥 폭 70% 조정 (bargap=0.45)
+            st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
             st.divider()
             st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
@@ -248,8 +250,6 @@ else:
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 
                 table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False])
-                
-                # 🔥 [추가] 수수료 페이지 총 합계 행 추가 로직
                 total_comm_sum = table_comm['매출액'].sum()
                 total_row_comm = pd.DataFrame([{'에이전트': '[ 총 합계 ]', '국적': '-', '매출액': total_comm_sum}])
                 table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
