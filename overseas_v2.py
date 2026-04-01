@@ -10,7 +10,7 @@ st.set_page_config(page_title="온리프 해외 매출 분석", layout="wide")
 
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=0&single=true&output=csv"
 
-# 🌍 국가별 권역 매핑 (업데이트됨)
+# 🌍 국가별 권역 매핑
 def get_region(nation):
     nation = str(nation).strip()
     if nation in ['중국', '대만', '홍콩', '마카오', 'China', 'Taiwan', 'Hong Kong']:
@@ -92,23 +92,35 @@ if raw_data is not None:
         fig_pie = px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         fig_pie.update_traces(textinfo='percent+label')
         st.plotly_chart(fig_pie, use_container_width=True)
+    
     with c2:
+        st.subheader(f"📑 {selected_month} {view_mode} 상세 실적")
+        st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
+        
         table_df = n_df.sort_values(by='매출액_숫자', ascending=False).reset_index(drop=True)
         table_df['매출액'] = table_df['매출액_숫자'].map('{:,.0f}'.format)
-        st.table(table_df[[group_col, '매출액']])
+        
+        # 💡 [우측 정렬 적용] 
+        # Streamlit의 기본 table 대신 정렬 기능을 가진 dataframe 사용
+        st.dataframe(
+            table_df[[group_col, '매출액']], 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "매출액": st.column_config.TextColumn("매출액", help="부가세 제외 금액", width="medium"),
+                group_col: st.column_config.TextColumn(group_col, width="medium")
+            }
+        )
 
-    # 🔍 '기타' 권역 구성 국가 확인용 섹션
-    st.divider()
-    st.subheader("❓ '기타' 권역은 어떤 국가인가요?")
+    # 🔍 '기타' 구성 국가 리스트 (더 깔끔하게 표시)
     etc_nations = filtered_df[filtered_df['권역'] == '기타']['국적'].unique()
     if len(etc_nations) > 0:
-        st.write(f"현재 **{selected_month}** 기준 '기타'로 분류된 국가: ")
-        st.info(", ".join(etc_nations))
-    else:
-        st.write("해당 월에는 '기타'로 분류된 국가가 없습니다.")
+        with st.expander(f"ℹ️ {selected_month} '기타' 권역 구성 국가 확인"):
+            st.write(", ".join(etc_nations))
 
     # 하단 추이
-    st.subheader(f"📈 월별 성장 추이 ({view_mode})")
+    st.divider()
+    st.subheader(f"📈 전체 해외매출 월별 성장 추이 ({view_mode} 구성)")
     trend_raw = df.groupby(['월날짜', '매출월', group_col])['매출액_숫자'].sum().reset_index()
     total_trend = df.groupby(['월날짜', '매출월'])['매출액_숫자'].sum().reset_index()
     sorted_months = total_trend.sort_values('월날짜')['매출월'].tolist()
@@ -118,7 +130,11 @@ if raw_data is not None:
         item_data = trend_raw[trend_raw[group_col] == item].sort_values('월날짜')
         fig_trend.add_trace(go.Bar(x=item_data['매출월'], y=item_data['매출액_숫자'], name=item, text=item, textposition='auto'))
 
-    fig_trend.update_layout(barmode='stack', xaxis={'categoryorder': 'array', 'categoryarray': sorted_months})
+    fig_trend.update_layout(
+        barmode='stack', 
+        xaxis={'categoryorder': 'array', 'categoryarray': sorted_months},
+        yaxis=dict(tickformat=',d') # Y축 숫자 콤마 표시
+    )
     st.plotly_chart(fig_trend, use_container_width=True)
 
 else:
