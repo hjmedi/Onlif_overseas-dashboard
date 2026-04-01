@@ -121,7 +121,54 @@ else:
         if '매출월' in df_main.columns:
             m_df = df_main[df_main['매출월'] == sel_month]
             total_rev = m_df['매출액_숫자'].sum()
-            st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+            
+            # 🔥 [새로운 기능] 자동 인사이트 분석 로직 시작
+            idx = month_list.index(sel_month)
+            prev_total = 0
+            prev_month = ""
+            growth_rate = 0
+            
+            if idx < len(month_list) - 1:
+                prev_month = month_list[idx + 1]
+                prev_m_df = df_main[df_main['매출월'] == prev_month]
+                prev_total = prev_m_df['매출액_숫자'].sum()
+                if prev_total > 0:
+                    growth_rate = (total_rev - prev_total) / prev_total * 100
+
+            # 상단 핵심 지표 (전월 대비 퍼센트 표시 추가)
+            if prev_total > 0:
+                st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}% (전월 대비)")
+            else:
+                st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+
+            # 인사이트 박스
+            with st.container():
+                st.markdown("### 💡 AI 자동 분석 리포트")
+                if prev_total > 0:
+                    # 1. 성장률 멘트
+                    if growth_rate > 0:
+                        st.success(f"📈 **전월({prev_month}) 대비 총매출이 {growth_rate:.1f}% 성장**했습니다! (+{(total_rev - prev_total):,.0f}원)")
+                    else:
+                        st.warning(f"📉 전월({prev_month}) 대비 총매출이 {abs(growth_rate):.1f}% 감소했습니다. (-{abs(total_rev - prev_total):,.0f}원)")
+                    
+                    # 2. 최고 매출 타이틀 멘트
+                    monthly_totals = df_main.groupby('매출월')['매출액_숫자'].sum()
+                    if total_rev == monthly_totals.max() and total_rev > 0:
+                        st.info("🏆 **현재까지 수집된 데이터 기준, 역대 최고 월 매출을 기록했습니다!** 축하합니다!")
+                        
+                    # 3. 최대 성장 국가 멘트
+                    curr_nations = m_df.groupby('국적')['매출액_숫자'].sum()
+                    prev_nations = prev_m_df.groupby('국적')['매출액_숫자'].sum()
+                    growth_nations = curr_nations.subtract(prev_nations, fill_value=0)
+                    
+                    if not growth_nations.empty and growth_nations.max() > 0:
+                        top_nation = growth_nations.idxmax()
+                        top_growth = growth_nations.max()
+                        st.info(f"🔥 **가장 눈에 띄는 성장 국가:** **{top_nation}** (전월 대비 +{top_growth:,.0f}원 증가)")
+                else:
+                    st.info(f"비교할 이전 달 데이터가 없어 인사이트 분석이 제한됩니다.")
+            st.divider()
+            # 🔥 인사이트 로직 끝
 
             c1, c2 = st.columns([1, 1.2])
             with c1:
@@ -137,7 +184,6 @@ else:
                 table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
                 st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
 
-            # 🔥 잃어버렸던 '기타' 권역 구성 국가 확인 로직 완벽 복구!
             if view_mode == "권역별":
                 etc_nations = m_df[m_df['권역'] == '기타']['국적'].dropna().unique()
                 if len(etc_nations) > 0:
