@@ -38,20 +38,16 @@ def load_all_data():
     # 1. 메인 매출 데이터
     res_m = requests.get(URL_MAIN)
     df_m_raw = pd.read_csv(StringIO(res_m.content.decode('utf-8-sig')), header=None)
-    
     h_idx = 0
     for i in range(len(df_m_raw)):
         if '이름' in "".join(df_m_raw.iloc[i].fillna('').astype(str)):
             h_idx = i; break
-            
     df_m = df_m_raw.copy()
     df_m.columns = [str(c).strip() for c in df_m.iloc[h_idx].fillna('미지정')]
     df_m = df_m.drop(range(h_idx + 1)).reset_index(drop=True)
-    
     div_col = [c for c in df_m.columns if '구분' in c or '해외' in c]
     if div_col:
         df_m = df_m[df_m[div_col[0]].astype(str).str.contains('해외', na=False)]
-        
     amt_col = [c for c in df_m.columns if '수납액' in c and 'CRM' in c]
     if not amt_col: amt_col = [c for c in df_m.columns if '수납액' in c]
     df_m['매출액_숫자'] = df_m[amt_col[0]].apply(to_numeric) / 1.1 if amt_col else 0
@@ -72,37 +68,30 @@ def load_all_data():
             comm_list.append(df_c)
         except: continue
     df_comm_total = pd.concat(comm_list, ignore_index=True) if comm_list else pd.DataFrame()
-    
     return df_m, df_comm_total
 
 df_main_raw, df_comm_raw = load_all_data()
 
-# --- 날짜 처리 함수 ---
 def format_date(df, col):
     target_col = [c for c in df.columns if col in c]
     if target_col:
         df['날짜형'] = pd.to_datetime(df[target_col[0]], errors='coerce')
         df = df.dropna(subset=['날짜형'])
         df['매출월'] = df['날짜형'].dt.strftime('%y년 %m월')
-        df['월순서'] = df['날짜형'].dt.strftime('%Y-%m') # 정렬키
+        df['월순서'] = df['날짜형'].dt.strftime('%Y-%m')
     return df
 
 df_main = format_date(df_main_raw, '수납일')
 df_comm = format_date(df_comm_raw, '날짜')
 
-# 메인 시트와 수수료 시트의 모든 날짜 합쳐서 오름차순 리스트 생성
 all_dates_df = pd.concat([
     df_main[['월순서', '매출월']] if not df_main.empty and '월순서' in df_main.columns else pd.DataFrame(),
     df_comm[['월순서', '매출월']] if not df_comm.empty and '월순서' in df_comm.columns else pd.DataFrame()
 ]).drop_duplicates().sort_values('월순서')
-
 CHRONOLOGICAL_MONTHS = all_dates_df['매출월'].dropna().tolist()
 
-# --- 사이드바 ---
 st.sidebar.title("🏨 온리프 관리 시스템")
 menu = st.sidebar.radio("메뉴 이동", ["🌐 전체 매출 요약", "💸 수수료 매출(에이전트별)"])
-
-# 선택박스는 최신순으로
 month_list = sorted(CHRONOLOGICAL_MONTHS, reverse=True)
 
 if not month_list:
@@ -121,142 +110,110 @@ else:
         if '매출월' in df_main.columns:
             m_df = df_main[df_main['매출월'] == sel_month]
             total_rev = m_df['매출액_숫자'].sum()
-            
-            # 🔥 [새로운 기능] 자동 인사이트 분석 로직 시작
             idx = month_list.index(sel_month)
-            prev_total = 0
-            prev_month = ""
-            growth_rate = 0
-            
+            prev_total, prev_month, growth_rate = 0, "", 0
             if idx < len(month_list) - 1:
                 prev_month = month_list[idx + 1]
                 prev_m_df = df_main[df_main['매출월'] == prev_month]
                 prev_total = prev_m_df['매출액_숫자'].sum()
-                if prev_total > 0:
-                    growth_rate = (total_rev - prev_total) / prev_total * 100
+                if prev_total > 0: growth_rate = (total_rev - prev_total) / prev_total * 100
 
-            # 상단 핵심 지표 (전월 대비 퍼센트 표시 추가)
-            if prev_total > 0:
-                st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}% (전월 대비)")
-            else:
-                st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+            if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
+            else: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
 
-            # 인사이트 박스
             with st.container():
                 st.markdown("### 💡 AI 자동 분석 리포트")
                 if prev_total > 0:
-                    # 1. 성장률 멘트
-                    if growth_rate > 0:
-                        st.success(f"📈 **전월({prev_month}) 대비 총매출이 {growth_rate:.1f}% 성장**했습니다! (+{(total_rev - prev_total):,.0f}원)")
-                    else:
-                        st.warning(f"📉 전월({prev_month}) 대비 총매출이 {abs(growth_rate):.1f}% 감소했습니다. (-{abs(total_rev - prev_total):,.0f}원)")
-                    
-                    # 2. 최고 매출 타이틀 멘트
-                    monthly_totals = df_main.groupby('매출월')['매출액_숫자'].sum()
-                    if total_rev == monthly_totals.max() and total_rev > 0:
-                        st.info("🏆 **현재까지 수집된 데이터 기준, 역대 최고 월 매출을 기록했습니다!** 축하합니다!")
-                        
-                    # 3. 최대 성장 국가 멘트
+                    if growth_rate > 0: st.success(f"📈 **전월 대비 총매출이 {growth_rate:.1f}% 성장**했습니다! (+{(total_rev - prev_total):,.0f}원)")
+                    else: st.warning(f"📉 전월 대비 총매출이 {abs(growth_rate):.1f}% 감소했습니다.")
+                    if total_rev == df_main.groupby('매출월')['매출액_숫자'].sum().max(): st.info("🏆 **역대 최고 월 매출 기록!**")
                     curr_nations = m_df.groupby('국적')['매출액_숫자'].sum()
                     prev_nations = prev_m_df.groupby('국적')['매출액_숫자'].sum()
                     growth_nations = curr_nations.subtract(prev_nations, fill_value=0)
-                    
                     if not growth_nations.empty and growth_nations.max() > 0:
-                        top_nation = growth_nations.idxmax()
-                        top_growth = growth_nations.max()
-                        st.info(f"🔥 **가장 눈에 띄는 성장 국가:** **{top_nation}** (전월 대비 +{top_growth:,.0f}원 증가)")
-                else:
-                    st.info(f"비교할 이전 달 데이터가 없어 인사이트 분석이 제한됩니다.")
+                        st.info(f"🔥 **가장 눈에 띄는 성장 국가:** **{growth_nations.idxmax()}** (+{growth_nations.max():,.0f}원)")
+                else: st.info("비교 데이터 없음")
             st.divider()
-            # 🔥 인사이트 로직 끝
 
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
-                fig_pie = px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_pie.update_traces(textinfo='percent+label')
-                st.plotly_chart(fig_pie, use_container_width=True)
-            
+                st.plotly_chart(px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textinfo='percent+label'), use_container_width=True)
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
-                st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                table_df = n_df.sort_values('매출액_숫자', ascending=False)
-                table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
-                st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
-
+                st.dataframe(n_df.sort_values('매출액_숫자', ascending=False).assign(매출액=lambda x: x['매출액_숫자'].apply(lambda y: f"{int(y):,}")).loc[:, [group_col, '매출액']], use_container_width=True, hide_index=True, column_config={"매출액": st.column_config.TextColumn(alignment="right")})
+            
             if view_mode == "권역별":
-                etc_nations = m_df[m_df['권역'] == '기타']['국적'].dropna().unique()
-                if len(etc_nations) > 0:
-                    with st.expander(f"ℹ️ {sel_month} '기타' 권역 구성 국가 확인"):
-                        st.write(", ".join(etc_nations))
+                etc = m_df[m_df['권역'] == '기타']['국적'].dropna().unique()
+                if len(etc) > 0:
+                    with st.expander("ℹ️ '기타' 권역 구성 국가 확인"): st.write(", ".join(etc))
 
             st.divider()
             st.subheader(f"📈 전체 월별 성장 추이 ({view_mode} 기준)")
             trend_df = df_main.groupby(['월순서', '매출월', group_col])['매출액_숫자'].sum().reset_index().sort_values('월순서')
-            fig_trend = go.Figure()
+            fig = go.Figure()
             for item in trend_df[group_col].unique():
-                item_data = trend_df[trend_df[group_col] == item]
-                fig_trend.add_trace(go.Bar(x=item_data['매출월'], y=item_data['매출액_숫자'], name=item, text=item, textposition='auto'))
-            
-            total_trend = df_main.groupby(['월순서', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('월순서')
-            fig_trend.add_trace(go.Scatter(x=total_trend['매출월'], y=total_trend['매출액_숫자'], name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_trend['매출액_숫자']], textposition="top center"))
-            
-            fig_trend.update_layout(
-                barmode='stack', hovermode="x unified",
-                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}
-            )
-            st.plotly_chart(fig_trend, use_container_width=True)
-        else:
-            st.warning("메인 매출 데이터가 없습니다.")
+                d = trend_df[trend_df[group_col] == item]
+                fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto'))
+            tot = df_main.groupby(['월순서', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('월순서')
+            fig.add_trace(go.Scatter(x=tot['매출월'], y=tot['매출액_숫자'], name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot['매출액_숫자']], textposition="top center"))
+            st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}), use_container_width=True)
 
     # ==========================================================
     # --- 메뉴 2: 수수료 매출 (에이전트별) ---
     # ==========================================================
     else:
-        st.title(f"💸 수수료 매출 (에이전트별) 분석")
+        st.title(f"💸 {sel_month} 수수료 매출 분석")
         
         if not df_comm.empty:
+            curr_comm = df_comm[df_comm['매출월'] == sel_month]
+            total_comm_rev = curr_comm['매출액'].sum()
+            
+            # 🔥 [새로운 기능] 수수료 페이지 자동 분석 로직
+            idx = month_list.index(sel_month)
+            p_comm_total, p_month, c_growth_rate = 0, "", 0
+            if idx < len(month_list) - 1:
+                p_month = month_list[idx + 1]
+                p_comm_df = df_comm[df_comm['매출월'] == p_month]
+                p_comm_total = p_comm_df['매출액'].sum()
+                if p_comm_total > 0: c_growth_rate = (total_comm_rev - p_comm_total) / p_comm_total * 100
+
+            if p_comm_total > 0: st.metric("총 수납액 (에이전트 합계)", f"{total_comm_rev:,.0f}원", f"{c_growth_rate:.1f}%")
+            else: st.metric("총 수납액 (에이전트 합계)", f"{total_comm_rev:,.0f}원")
+
+            with st.container():
+                st.markdown("### 💡 에이전트 실적 분석 리포트")
+                if p_comm_total > 0:
+                    # 1. 수수료 매출 성장률
+                    if c_growth_rate > 0: st.success(f"📈 **전월({p_month}) 대비 에이전트 수납액이 {c_growth_rate:.1f}% 증가**했습니다! (+{(total_comm_rev - p_comm_total):,.0f}원)")
+                    else: st.warning(f"📉 전월({p_month}) 대비 에이전트 수납액이 {abs(c_growth_rate):.1f}% 감소했습니다.")
+                    
+                    # 2. 역대 최고 기록 체크
+                    if total_comm_rev == df_comm.groupby('매출월')['매출액'].sum().max(): st.info("🏆 **에이전트 합산 수납액 역대 최고치 경신!**")
+                    
+                    # 3. 최고 성장 에이전트 찾기
+                    c_agents = curr_comm.groupby('에이전트')['매출액'].sum()
+                    p_agents = p_comm_df.groupby('에이전트')['매출액'].sum()
+                    agent_diff = c_agents.subtract(p_agents, fill_value=0)
+                    if not agent_diff.empty and agent_diff.max() > 0:
+                        st.info(f"🚀 **금월 최대 성장 에이전트:** **{agent_diff.idxmax()}** (전월 대비 +{agent_diff.max():,.0f}원)")
+                else: st.info("비교 데이터가 부족하여 분석을 생략합니다.")
+            st.divider()
+
             st.subheader("📈 월별 수수료 매출 전체 추이")
             trend_data = df_comm.groupby(['월순서', '매출월', '에이전트'])['매출액'].sum().reset_index().sort_values('월순서')
-            
             fig_ctrend = go.Figure()
-            agents = trend_data['에이전트'].unique()
-            for agent in agents:
+            for agent in trend_data['에이전트'].unique():
                 a_data = trend_data[trend_data['에이전트'] == agent]
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=agent, text=agent, textposition='auto'))
-            
             total_cline = trend_data.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).dropna()
             fig_ctrend.add_trace(go.Scatter(x=total_cline.index, y=total_cline.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline.values], textposition="top center"))
-            
-            fig_ctrend.update_layout(
-                barmode='stack', hovermode="x unified", height=500,
-                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}
-            )
-            st.plotly_chart(fig_ctrend, use_container_width=True)
+            st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}), use_container_width=True)
 
             st.divider()
             st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
-            
-            curr_comm = df_comm[df_comm['매출월'] == sel_month]
             if not curr_comm.empty:
-                comp_data = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
-                
-                fig_comp = px.bar(
-                    comp_data, x='매출액', y='에이전트', color='국적', 
-                    orientation='h', 
-                    text='국적', 
-                    color_discrete_sequence=px.colors.qualitative.Pastel
-                )
-                fig_comp.update_traces(textposition='inside') 
-                fig_comp.update_layout(barmode='stack', height=400)
-                st.plotly_chart(fig_comp, use_container_width=True)
-                
+                comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
+                st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
                 st.subheader("📑 상세 정산 내역")
-                st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False])
-                table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
-                st.dataframe(table_comm[['에이전트', '국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
-            else:
-                st.warning(f"{sel_month}에 해당하는 수수료 데이터가 없습니다.")
-        else:
-            st.warning("수수료 시트를 불러오지 못했습니다.")
+                st.dataframe(curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False]).assign(매출액=lambda x: x['매출액'].apply(lambda y: f"{int(y):,}")).loc[:, ['에이전트', '국적', '매출액']], use_container_width=True, hide_index=True, column_config={"매출액": st.column_config.TextColumn(alignment="right")})
