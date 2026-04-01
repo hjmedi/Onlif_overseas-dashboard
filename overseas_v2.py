@@ -177,3 +177,34 @@ else:
             
             fig_ctrend.update_layout(
                 barmode='stack', hovermode="x unified", height=500,
+                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}
+            )
+            st.plotly_chart(fig_ctrend, use_container_width=True)
+
+            st.divider()
+            st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
+            
+            curr_comm = df_comm[df_comm['매출월'] == sel_month]
+            if not curr_comm.empty:
+                comp_data = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
+                
+                # 🔥 [수정됨] text_auto='.2s' 삭제하고 text='국적' 추가하여 막대 안에 국가명 표시
+                fig_comp = px.bar(
+                    comp_data, x='매출액', y='에이전트', color='국적', 
+                    orientation='h', 
+                    text='국적', # 막대 안에 국가명 지정
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                fig_comp.update_traces(textposition='inside') # 텍스트가 바깥으로 나가지 않고 안쪽에 위치하게 강제
+                fig_comp.update_layout(barmode='stack', height=400)
+                st.plotly_chart(fig_comp, use_container_width=True)
+                
+                st.subheader("📑 상세 정산 내역")
+                st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
+                table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False])
+                table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
+                st.dataframe(table_comm[['에이전트', '국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+            else:
+                st.warning(f"{sel_month}에 해당하는 수수료 데이터가 없습니다.")
+        else:
+            st.warning("수수료 시트를 불러오지 못했습니다.")
