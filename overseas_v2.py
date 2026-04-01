@@ -57,55 +57,56 @@ if raw_data is not None:
     # 3️⃣ [날짜 처리] E열 '수납일'을 월 단위로 변환
     date_col = [c for c in df.columns if '수납일' in c]
     if date_col:
-        # 날짜 형식으로 변환 (에러나는 데이터는 무시)
         df['날짜형식'] = pd.to_datetime(df[date_col[0]], errors='coerce')
-        # '연도-월' 형식의 문자열 생성
-        df['매출월'] = df['날짜형식'].dt.strftime('%Y-%m')
+        df['매출월'] = df['날짜형식'].dt.strftime('%Y년 %m월')
     else:
         df['매출월'] = "날짜미상"
 
-    st.title("📅 온리프 해외 매출 월별 분석 리포트")
+    # ------------------ 사이드바 설정 ------------------
+    st.sidebar.header("📊 메뉴 이동")
+    st.sidebar.radio("원하시는 리스트를 선택하세요:", ["🌐 전체 매출 요약 (원형 그래프)"])
     
-    # 상단 요약 지표
-    total_rev = df['매출액_숫자'].sum()
-    st.metric(label="총 해외 매출 합계", value=f"{total_rev:,.0f} 원")
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📅 조회할 월을 선택하세요")
+    
+    # 데이터에 있는 월 목록 추출 (정렬됨)
+    month_list = sorted(df['매출월'].dropna().unique(), reverse=True)
+    selected_month = st.sidebar.selectbox("월 선택", month_list)
+
+    # 선택된 월로 데이터 필터링
+    filtered_df = df[df['매출월'] == selected_month]
+    # --------------------------------------------------
+
+    st.title(f"📊 온리프 해외매출 국적별 비중 분석")
+    st.caption(f"📍 {selected_month} 해외매출 종합")
+    
+    # 상단 요약 지표 (선택된 월 기준)
+    month_revenue = filtered_df['매출액_숫자'].sum()
+    st.header(f"{month_revenue:,.0f}원")
     st.divider()
 
-    if not df.empty:
-        # --- 월별 매출 추이 그래프 (추가됨) ---
-        st.subheader("📈 월별 매출 추이")
-        monthly_df = df.dropna(subset=['매출월']).groupby('매출월')['매출액_숫자'].sum().reset_index()
-        monthly_df = monthly_df.sort_values('매출월') # 시간순 정렬
+    if not filtered_df.empty:
+        c1, c2 = st.columns([1, 1])
         
-        fig_line = px.line(monthly_df, x='매출월', y='매출액_숫자', text=monthly_df['매출액_숫자'].apply(lambda x: f"{x:,.0f}"),
-                          title="월별 매출 흐름", markers=True)
-        fig_line.update_traces(textposition="top center")
-        st.plotly_chart(fig_line, use_container_width=True)
-
-        st.divider()
-
-        c1, c2 = st.columns(2)
         with c1:
             st.subheader("🌐 국적별 매출 비중")
-            n_df = df.groupby('국적')['매출액_숫자'].sum().reset_index()
-            fig1 = px.pie(n_df, values='매출액_숫자', names='국적', hole=0.4)
-            fig1.update_traces(textinfo='percent+value', texttemplate='%{label}<br>%{value:,.0f}원')
+            n_df = filtered_df.groupby('국적')['매출액_숫자'].sum().reset_index()
+            fig1 = px.pie(n_df, values='매출액_숫자', names='국적', hole=0.4,
+                          color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig1.update_traces(textinfo='percent+label', texttemplate='%{label}<br>%{percent}')
             st.plotly_chart(fig1, use_container_width=True)
 
         with c2:
-            st.subheader("🔍 유입 경로별 매출")
-            p_col = [c for c in df.columns if '유입경로' in c]
-            if p_col:
-                p_df = df.groupby(p_col[0])['매출액_숫자'].sum().sort_values(ascending=True).reset_index()
-                p_df.columns = ['경로', '매출액']
-                fig2 = px.bar(p_df, x='매출액', y='경로', orientation='h', text_auto=',.0f', color='경로')
-                st.plotly_chart(fig2, use_container_width=True)
+            st.subheader(f"📊 {selected_month} 국적별 상세 실적")
+            # 표 형태의 데이터 정리
+            table_df = n_df.sort_values(by='매출액_숫자', ascending=False).reset_index(drop=True)
+            table_df['비중'] = (table_df['매출액_숫자'] / month_revenue * 100).map('{:.1f}%'.format)
+            table_df['매출액'] = table_df['매출액_숫자'].map('{:,.0f}'.format)
+            st.table(table_df[['국적', '매출액', '비중']])
         
         st.divider()
-        st.subheader("📋 상세 내역 (검증용)")
-        show_cols = [c for c in ['수납일', '매출월', '이름', '국적', amt_col[0] if amt_col else None] if c in df.columns or c == '매출월']
-        st.dataframe(df[show_cols], use_container_width=True)
-    else:
-        st.warning("데이터가 없습니다.")
-else:
-    st.error("데이터 로딩 실패")
+        st.subheader(f"🔍 {selected_month} 주요 유입 경로")
+        p_col = [c for c in df.columns if '유입경로' in c]
+        if p_col:
+            p_df = filtered_df.groupby(p_col[0])['매출액_숫자'].sum().sort_values(ascending=True).reset_index()
+            p_
