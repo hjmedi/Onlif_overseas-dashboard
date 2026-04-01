@@ -144,7 +144,7 @@ else:
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
-                n_df = n_df[n_df['매출액_숫자'] > 0] # 🔥 0원 숨김
+                n_df = n_df[n_df['매출액_숫자'] > 0]
                 st.plotly_chart(px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textinfo='percent+label'), use_container_width=True)
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
@@ -170,8 +170,11 @@ else:
             for item in trend_df[group_col].unique():
                 d = trend_df[trend_df[group_col] == item]
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto'))
-            tot = df_main.groupby(['월순서', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('월순서')
-            fig.add_trace(go.Scatter(x=tot['매출월'], y=tot['매출액_숫자'], name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot['매출액_숫자']], textposition="top center"))
+            
+            # 🔥 [수정] 메인 페이지 꺾은선 차트도 빈 달은 0으로 채우기 (fillna(0))
+            tot_series = df_main.groupby('매출월')['매출액_숫자'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
+            fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot_series.values], textposition="top center"))
+            
             st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
     # ==========================================================
@@ -215,7 +218,7 @@ else:
                     if c_growth_rate > 0: st.success(f"📈 **전월 대비 수납액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
                     elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 수납액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
                     
-                    if total_comm_rev == page_df.groupby('매출월')['매출액'].sum().max(): 
+                    if total_comm_rev == page_df.groupby('매출월')['매출액'].sum().max() and total_comm_rev > 0: 
                         st.info(f"🏆 **역대 최고치 경신!**")
                     
                     c_groups = curr_comm.groupby(g_col)['매출액'].sum()
@@ -249,8 +252,11 @@ else:
             for g_item in trend_data[g_col].unique():
                 a_data = trend_data[trend_data[g_col] == g_item]
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto'))
-            total_cline = trend_data.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).dropna()
-            fig_ctrend.add_trace(go.Scatter(x=total_cline.index, y=total_cline.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline.values], textposition="top center"))
+            
+            # 🔥 [수정] 수수료 페이지 꺾은선 차트도 빈 달은 0으로 채우기 (fillna(0))
+            total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
+            fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
+            
             st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
             st.divider()
@@ -260,13 +266,13 @@ else:
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
                 if not curr_comm.empty:
                     comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
-                    comp = comp[comp['매출액'] > 0] # 🔥 0원 숨김
+                    comp = comp[comp['매출액'] > 0]
                     st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
                     
                     st.subheader("📑 상세 정산 내역")
                     st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                     table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
-                    table_comm = table_comm[table_comm['매출액'] > 0].sort_values(['에이전트', '매출액'], ascending=[True, False]) # 🔥 0원 숨김
+                    table_comm = table_comm[table_comm['매출액'] > 0].sort_values(['에이전트', '매출액'], ascending=[True, False])
                     total_comm_sum = table_comm['매출액'].sum()
                     total_row_comm = pd.DataFrame([{'에이전트': '[ 총 합계 ]', '국적': '-', '매출액': total_comm_sum}])
                     table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
@@ -279,7 +285,7 @@ else:
                     
                     with col1:
                         comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
-                        comp = comp[comp['매출액'] > 0] # 🔥 0원 숨김
+                        comp = comp[comp['매출액'] > 0]
                         fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                         fig_comp.update_traces(textinfo='percent+label')
                         st.plotly_chart(fig_comp, use_container_width=True)
@@ -288,7 +294,7 @@ else:
                         st.subheader("📑 상세 정산 내역")
                         st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                         table_comm = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
-                        table_comm = table_comm[table_comm['매출액'] > 0].sort_values(['매출액'], ascending=False) # 🔥 0원 숨김
+                        table_comm = table_comm[table_comm['매출액'] > 0].sort_values(['매출액'], ascending=False)
                         total_comm_sum = table_comm['매출액'].sum()
                         total_row_comm = pd.DataFrame([{'국적': '[ 총 합계 ]', '매출액': total_comm_sum}])
                         table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
