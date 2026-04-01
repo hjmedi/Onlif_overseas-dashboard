@@ -52,23 +52,24 @@ if raw_data is not None:
         amt_col = [c for c in df.columns if '수납액' in c or '금액' in c]
     df['매출액_숫자'] = df[amt_col[0]].apply(to_numeric_net) if amt_col else 0
 
-    # 3️⃣ 날짜 처리 (✨ 정렬 로직 강화)
+    # 3️⃣ 날짜 처리 (✨ 무적의 정렬 로직 적용)
     date_col = [c for c in df.columns if '수납일' in c]
     if date_col:
         df['날짜형식'] = pd.to_datetime(df[date_col[0]], errors='coerce')
         df = df.dropna(subset=['날짜형식'])
-        # 정렬용 월 필드 (YYYYMM) 생성
-        df['정렬용월'] = df['날짜형식'].dt.to_period('M')
-        # 표시용 월 필드 (YY년 MM월)
+        
+        # 📌 핵심: 컴퓨터가 정렬하기 가장 좋은 숫자 형태(202510, 202511...)로 정렬 키 생성
+        df['정렬키'] = df['날짜형식'].dt.year * 100 + df['날짜형식'].dt.month
+        # 화면 표시용 이름
         df['매출월'] = df['날짜형식'].dt.strftime('%y년 %m월')
 
     # --- 사이드바 설정 ---
     st.sidebar.header("📊 메뉴 이동")
     st.sidebar.radio("리스트 선택:", ["🌐 전체 매출 요약 (원형 그래프)"])
     
-    # 사이드바 선택 목록도 시간 역순으로 정렬
-    month_options = df.sort_values('날짜형식', ascending=False)['매출월'].unique()
-    selected_month = st.sidebar.selectbox("📅 조회할 월 선택", month_options)
+    # 사이드바 선택 목록 (최신순 정렬)
+    sidebar_options = df.sort_values('정렬키', ascending=False)['매출월'].unique()
+    selected_month = st.sidebar.selectbox("📅 조회할 월 선택", sidebar_options)
 
     # --- 데이터 필터링 ---
     filtered_df = df[df['매출월'] == selected_month]
@@ -96,15 +97,15 @@ if raw_data is not None:
             table_df['매출액'] = table_df['매출액_숫자'].map('{:,.0f}'.format)
             st.table(table_df[['국적', '매출액', '비중']])
 
-    # --- 하단 성장 추이 (✨ 시간순 정렬 적용) ---
+    # --- 하단 성장 추이 (✨ 정렬키를 이용해 시간순 강제 정렬) ---
     st.divider()
     st.subheader("📈 전체 해외매출 월별 성장 추이 (국적별 구성)")
     
-    # 시간 순서대로 전체 그룹화
-    trend_raw = df.groupby(['정렬용월', '매출월', '국적'])['매출액_숫자'].sum().reset_index()
-    trend_raw = trend_raw.sort_values('정렬용월') # 여기서 시간순으로 정렬!
+    # 정렬키를 포함해서 그룹화한 뒤, 정렬키 기준으로 데이터 정렬
+    trend_raw = df.groupby(['정렬키', '매출월', '국적'])['매출액_숫자'].sum().reset_index()
+    trend_raw = trend_raw.sort_values('정렬키') 
     
-    total_trend = df.groupby(['정렬용월', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('정렬용월')
+    total_trend = df.groupby(['정렬키', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('정렬키')
 
     fig_trend = go.Figure()
 
@@ -126,7 +127,7 @@ if raw_data is not None:
 
     fig_trend.update_layout(
         barmode='stack',
-        xaxis={'type': 'category'}, # 카테고리 타입으로 지정하여 정렬 유지
+        xaxis={'type': 'category'}, # 데이터가 들어온 순서(정렬된 순서)대로 표시
         hovermode="x unified"
     )
     st.plotly_chart(fig_trend, use_container_width=True)
