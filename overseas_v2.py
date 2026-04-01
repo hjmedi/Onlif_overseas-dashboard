@@ -8,7 +8,7 @@ from io import StringIO
 st.set_page_config(page_title="온리프 통합 데이터 센터", layout="wide")
 
 # ⚠️ 여기에 '수납raw' 시트의 CSV 주소를 따옴표 안에 넣어주세요
-CSV_URL = "https://docs.google.com/spreadsheets/d/1fZ0uLCwC4wqirxy_WFbfOwmbIeLpPRfsIBEwqC4hdIE/edit?gid=0#gid=0"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=0&single=true&output=csv"
 @st.cache_data(ttl=30)
 def get_data(url):
     try:
