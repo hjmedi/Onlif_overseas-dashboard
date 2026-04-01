@@ -52,13 +52,13 @@ if raw_data is not None:
         amt_col = [c for c in df.columns if '수납액' in c or '금액' in c]
     df['매출액_숫자'] = df[amt_col[0]].apply(to_numeric_net) if amt_col else 0
 
-    # 3️⃣ 날짜 처리 (강력한 정렬 로직)
+    # 3️⃣ 날짜 처리
     date_col = [c for c in df.columns if '수납일' in c]
     if date_col:
         df['날짜형식'] = pd.to_datetime(df[date_col[0]], errors='coerce')
         df = df.dropna(subset=['날짜형식'])
         
-        # 월의 첫날로 통일 (정렬용 표준 날짜 생성: 2025-10-01, 2025-11-01...)
+        # 월의 첫날로 통일 (정렬용 표준 날짜 생성)
         df['월날짜'] = df['날짜형식'].dt.to_period('M').dt.to_timestamp()
         # 화면 표시용 텍스트
         df['매출월'] = df['날짜형식'].dt.strftime('%y년 %m월')
@@ -97,22 +97,29 @@ if raw_data is not None:
             table_df['매출액'] = table_df['매출액_숫자'].map('{:,.0f}'.format)
             st.table(table_df[['국적', '매출액', '비중']])
 
-    # --- 하단 성장 추이 (✨ 날짜축 강제 정렬 적용) ---
+    # --- 하단 성장 추이 ---
     st.divider()
     st.subheader("📈 전체 해외매출 월별 성장 추이 (국적별 구성)")
     
     # 월(표준날짜) 기준으로 데이터 그룹화
     trend_raw = df.groupby(['월날짜', '매출월', '국적'])['매출액_숫자'].sum().reset_index()
-    # 합계 데이터도 월(표준날짜) 기준
     total_trend = df.groupby(['월날짜', '매출월'])['매출액_숫자'].sum().reset_index()
+
+    # X축 순서 강제 고정용 리스트
+    sorted_months = total_trend.sort_values('월날짜')['매출월'].tolist()
 
     fig_trend = go.Figure()
 
-    # 1. 막대 그래프 (국적별 쌓기)
+    # 1. 막대 그래프 (국적별 쌓기 + 🔥 국가 이름 표시 추가)
     for nation in trend_raw['국적'].unique():
         n_data = trend_raw[trend_raw['국적'] == nation].sort_values('월날짜')
         fig_trend.add_trace(go.Bar(
-            x=n_data['매출월'], y=n_data['매출액_숫자'], name=nation
+            x=n_data['매출월'], 
+            y=n_data['매출액_숫자'], 
+            name=nation,
+            text=nation, # 🔥 막대 안에 표시할 텍스트로 국가 이름 지정
+            textposition='auto', # 🔥 텍스트 위치 자동 (막대 크기에 따라 안쪽 또는 바깥쪽)
+            textfont=dict(color='white') # 🔥 텍스트 색상 설정 (배경색에 따라 조정 필요할 수 있음)
         ))
 
     # 2. 선 그래프 (합계 추세선)
@@ -127,7 +134,7 @@ if raw_data is not None:
 
     fig_trend.update_layout(
         barmode='stack',
-        xaxis={'categoryorder': 'array', 'categoryarray': total_trend['매출월'].tolist()}, # 정렬된 리스트 순서대로 강제 고정
+        xaxis={'categoryorder': 'array', 'categoryarray': sorted_months}, # 정렬된 리스트 순서대로 강제 고정
         hovermode="x unified"
     )
     st.plotly_chart(fig_trend, use_container_width=True)
