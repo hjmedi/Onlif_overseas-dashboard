@@ -105,4 +105,39 @@ if raw_data is not None:
             use_container_width=True,
             hide_index=True,
             column_config={
-                group
+                group_col: st.column_config.TextColumn(f"{view_mode}", width="medium"),
+                "매출액_숫자": st.column_config.NumberColumn(
+                    "매출액",
+                    format="%d", # 쉼표 포함 정수형
+                    width="medium"
+                )
+            }
+        )
+
+    # '기타' 구성 확인
+    etc_nations = filtered_df[filtered_df['권역'] == '기타']['국적'].unique()
+    if len(etc_nations) > 0:
+        with st.expander(f"ℹ️ {selected_month} '기타' 권역 구성 국가 확인"):
+            st.write(", ".join(etc_nations))
+
+    # 하단 추이
+    st.divider()
+    st.subheader(f"📈 전체 해외매출 월별 성장 추이 ({view_mode} 구성)")
+    trend_raw = df.groupby(['월날짜', '매출월', group_col])['매출액_숫자'].sum().reset_index()
+    total_trend = df.groupby(['월날짜', '매출월'])['매출액_숫자'].sum().reset_index()
+    sorted_months = total_trend.sort_values('월날짜')['매출월'].tolist()
+
+    fig_trend = go.Figure()
+    for item in trend_raw[group_col].unique():
+        item_data = trend_raw[trend_raw[group_col] == item].sort_values('월날짜')
+        fig_trend.add_trace(go.Bar(x=item_data['매출월'], y=item_data['매출액_숫자'], name=item, text=item, textposition='auto'))
+
+    fig_trend.update_layout(
+        barmode='stack', 
+        xaxis={'categoryorder': 'array', 'categoryarray': sorted_months},
+        yaxis=dict(tickformat=',d')
+    )
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+else:
+    st.error("데이터 로딩 실패")
