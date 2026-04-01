@@ -91,7 +91,8 @@ all_dates_df = pd.concat([
 CHRONOLOGICAL_MONTHS = all_dates_df['매출월'].dropna().tolist()
 
 st.sidebar.title("🏨 온리프 관리 시스템")
-menu = st.sidebar.radio("메뉴 이동", ["🌐 전체 매출 요약", "💸 수수료 매출(에이전트별)"])
+# 🔥 요청1 반영: "전체 매출 요약" -> "온리프 해외매출 전체"로 변경
+menu = st.sidebar.radio("메뉴 이동", ["🌐 온리프 해외매출 전체", "💸 수수료 매출(에이전트별)"])
 month_list = sorted(CHRONOLOGICAL_MONTHS, reverse=True)
 
 if not month_list:
@@ -100,10 +101,10 @@ else:
     sel_month = st.sidebar.selectbox("📅 조회 월 선택", month_list)
 
     # ==========================================================
-    # --- 메뉴 1: 전체 매출 요약 ---
+    # --- 메뉴 1: 온리프 해외매출 전체 ---
     # ==========================================================
-    if menu == "🌐 전체 매출 요약":
-        st.title(f"🌐 {sel_month} 전체 매출 요약")
+    if menu == "🌐 온리프 해외매출 전체":
+        st.title(f"🌐 {sel_month} 온리프 해외매출 전체")
         view_mode = st.sidebar.radio("🔎 분석 기준", ["국가별", "권역별"])
         group_col = '국적' if view_mode == "국가별" else '권역'
 
@@ -127,17 +128,14 @@ else:
                 if prev_total > 0:
                     diff_amt = total_rev - prev_total
                     
-                    # 1. 전체 성장률 (금액 + % 동시 표기)
                     if growth_rate > 0: 
                         st.success(f"📈 **전월 대비 총매출이 성장했습니다!** (+{diff_amt:,.0f}원 / +{growth_rate:.1f}%)")
                     elif growth_rate < 0: 
                         st.warning(f"📉 **전월 대비 총매출이 감소했습니다.** ({diff_amt:,.0f}원 / {growth_rate:.1f}%)")
                         
-                    # 2. 역대 최고 기록
                     if total_rev == df_main.groupby('매출월')['매출액_숫자'].sum().max(): 
                         st.info("🏆 **역대 최고 월 매출 기록!**")
                         
-                    # 3. 최대 성장 국가 (금액 + % 동시 표기)
                     curr_nations = m_df.groupby('국적')['매출액_숫자'].sum()
                     prev_nations = prev_m_df.groupby('국적')['매출액_숫자'].sum()
                     growth_nations = curr_nations.subtract(prev_nations, fill_value=0)
@@ -202,28 +200,35 @@ else:
                 if p_comm_total > 0:
                     c_diff_amt = total_comm_rev - p_comm_total
                     
-                    # 1. 수수료 매출 성장률 (금액 + % 동시 표기)
                     if c_growth_rate > 0: 
-                        st.success(f"📈 **전월 대비 에이전트 수납액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
+                        st.success(f"📈 **전월 대비 전체 에이전트 수납액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
                     elif c_growth_rate < 0: 
-                        st.warning(f"📉 **전월 대비 에이전트 수납액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
+                        st.warning(f"📉 **전월 대비 전체 에이전트 수납액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
                     
-                    # 2. 역대 최고 기록
                     if total_comm_rev == df_comm.groupby('매출월')['매출액'].sum().max(): 
                         st.info("🏆 **에이전트 합산 수납액 역대 최고치 경신!**")
                     
-                    # 3. 최고 성장 에이전트 (금액 + % 동시 표기)
+                    # 🔥 요청2 반영: 최대 성장 에이전트와 최대 감소 에이전트를 모두 표시하여 변동 파악 용이
                     c_agents = curr_comm.groupby('에이전트')['매출액'].sum()
                     p_agents = p_comm_df.groupby('에이전트')['매출액'].sum()
                     agent_diff = c_agents.subtract(p_agents, fill_value=0)
                     
-                    if not agent_diff.empty and agent_diff.max() > 0:
+                    if not agent_diff.empty:
                         top_agent = agent_diff.idxmax()
                         top_diff_amt = agent_diff.max()
-                        p_agent_amt = p_agents.get(top_agent, 0)
                         
-                        a_rate_str = f" / +{(top_diff_amt / p_agent_amt * 100):.1f}%" if p_agent_amt > 0 else " / 순증가(신규)"
-                        st.info(f"🚀 **금월 최대 성장 에이전트:** **{top_agent}** (전월 대비 +{top_diff_amt:,.0f}원{a_rate_str})")
+                        bottom_agent = agent_diff.idxmin()
+                        bottom_diff_amt = agent_diff.min()
+
+                        if top_diff_amt > 0:
+                            p_agent_amt = p_agents.get(top_agent, 0)
+                            a_rate_str = f" / +{(top_diff_amt / p_agent_amt * 100):.1f}%" if p_agent_amt > 0 else " / 순증가(신규)"
+                            st.info(f"🚀 **최대 성장 에이전트:** **{top_agent}** (전월 대비 +{top_diff_amt:,.0f}원{a_rate_str})")
+                            
+                        if bottom_diff_amt < 0:
+                            p_agent_amt_bottom = p_agents.get(bottom_agent, 0)
+                            b_rate_str = f" / {(bottom_diff_amt / p_agent_amt_bottom * 100):.1f}%" if p_agent_amt_bottom > 0 else ""
+                            st.error(f"🔻 **최대 감소 에이전트:** **{bottom_agent}** (전월 대비 {bottom_diff_amt:,.0f}원{b_rate_str})")
                 else: st.info("비교 데이터가 부족하여 분석을 생략합니다.")
             st.divider()
 
