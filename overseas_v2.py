@@ -77,7 +77,7 @@ def load_all_data():
 
 df_main_raw, df_comm_raw = load_all_data()
 
-# --- 날짜 처리 함수 (YYYY-MM 형식의 월순서) ---
+# --- 날짜 처리 함수 ---
 def format_date(df, col):
     target_col = [c for c in df.columns if col in c]
     if target_col:
@@ -137,6 +137,13 @@ else:
                 table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
                 st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
 
+            # 🔥 잃어버렸던 '기타' 권역 구성 국가 확인 로직 완벽 복구!
+            if view_mode == "권역별":
+                etc_nations = m_df[m_df['권역'] == '기타']['국적'].dropna().unique()
+                if len(etc_nations) > 0:
+                    with st.expander(f"ℹ️ {sel_month} '기타' 권역 구성 국가 확인"):
+                        st.write(", ".join(etc_nations))
+
             st.divider()
             st.subheader(f"📈 전체 월별 성장 추이 ({view_mode} 기준)")
             trend_df = df_main.groupby(['월순서', '매출월', group_col])['매출액_숫자'].sum().reset_index().sort_values('월순서')
@@ -188,14 +195,13 @@ else:
             if not curr_comm.empty:
                 comp_data = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
                 
-                # 🔥 [수정됨] text_auto='.2s' 삭제하고 text='국적' 추가하여 막대 안에 국가명 표시
                 fig_comp = px.bar(
                     comp_data, x='매출액', y='에이전트', color='국적', 
                     orientation='h', 
-                    text='국적', # 막대 안에 국가명 지정
+                    text='국적', 
                     color_discrete_sequence=px.colors.qualitative.Pastel
                 )
-                fig_comp.update_traces(textposition='inside') # 텍스트가 바깥으로 나가지 않고 안쪽에 위치하게 강제
+                fig_comp.update_traces(textposition='inside') 
                 fig_comp.update_layout(barmode='stack', height=400)
                 st.plotly_chart(fig_comp, use_container_width=True)
                 
