@@ -150,12 +150,10 @@ else:
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                
                 table_df = n_df.sort_values('매출액_숫자', ascending=False)
                 total_sum = table_df['매출액_숫자'].sum()
                 total_row = pd.DataFrame([{group_col: '[ 총 합계 ]', '매출액_숫자': total_sum}])
                 table_df = pd.concat([table_df, total_row], ignore_index=True)
-                
                 table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
                 st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
             
@@ -173,86 +171,122 @@ else:
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto'))
             tot = df_main.groupby(['월순서', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('월순서')
             fig.add_trace(go.Scatter(x=tot['매출월'], y=tot['매출액_숫자'], name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot['매출액_숫자']], textposition="top center"))
-            
-            # 🔥 폭 70% 조정 (bargap=0.45)
             st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
     # ==========================================================
     # --- 메뉴 2: 수수료 매출 (에이전트별) ---
     # ==========================================================
     else:
-        st.title(f"💸 {sel_month} 수수료 매출 분석")
+        # 🔥 수수료 페이지 전용 사이드바 필터 (에이전트 선택)
+        agent_options = ["전체"] + sorted(df_comm['에이전트'].dropna().unique().tolist())
+        sel_agent = st.sidebar.selectbox("🧑‍💼 에이전트 상세 필터", agent_options)
+
+        # 필터링 로직: 전체면 에이전트 그룹, 특정 선택이면 국적 그룹
+        if sel_agent == "전체":
+            page_df = df_comm.copy()
+            g_col = '에이전트'
+            page_title = "수수료 매출 전체 분석"
+        else:
+            page_df = df_comm[df_comm['에이전트'] == sel_agent].copy()
+            g_col = '국적'
+            page_title = f"[{sel_agent}] 에이전트 상세 분석"
+
+        st.title(f"💸 {sel_month} {page_title}")
         
-        if not df_comm.empty:
-            curr_comm = df_comm[df_comm['매출월'] == sel_month]
+        if not page_df.empty:
+            curr_comm = page_df[page_df['매출월'] == sel_month]
             total_comm_rev = curr_comm['매출액'].sum()
             
             idx = month_list.index(sel_month)
             p_comm_total, p_month, c_growth_rate = 0, "", 0
             if idx < len(month_list) - 1:
                 p_month = month_list[idx + 1]
-                p_comm_df = df_comm[df_comm['매출월'] == p_month]
+                p_comm_df = page_df[page_df['매출월'] == p_month]
                 p_comm_total = p_comm_df['매출액'].sum()
                 if p_comm_total > 0: c_growth_rate = (total_comm_rev - p_comm_total) / p_comm_total * 100
 
-            if p_comm_total > 0: st.metric("총 수납액 (에이전트 합계)", f"{total_comm_rev:,.0f}원", f"{c_growth_rate:.1f}%")
-            else: st.metric("총 수납액 (에이전트 합계)", f"{total_comm_rev:,.0f}원")
+            metric_title = "총 수납액 합계" if sel_agent == "전체" else f"[{sel_agent}] 총 수납액"
+            if p_comm_total > 0: st.metric(metric_title, f"{total_comm_rev:,.0f}원", f"{c_growth_rate:.1f}%")
+            else: st.metric(metric_title, f"{total_comm_rev:,.0f}원")
 
             with st.container():
-                st.markdown("### 💡 에이전트 실적 분석 리포트")
+                st.markdown(f"### 💡 AI 실적 분석 리포트")
                 if p_comm_total > 0:
                     c_diff_amt = total_comm_rev - p_comm_total
-                    if c_growth_rate > 0: st.success(f"📈 **전월 대비 전체 에이전트 수납액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
-                    elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 전체 에이전트 수납액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
-                    if total_comm_rev == df_comm.groupby('매출월')['매출액'].sum().max(): st.info("🏆 **에이전트 합산 수납액 역대 최고치 경신!**")
+                    if c_growth_rate > 0: st.success(f"📈 **전월 대비 수납액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
+                    elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 수납액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
                     
-                    c_agents = curr_comm.groupby('에이전트')['매출액'].sum()
-                    p_agents = p_comm_df.groupby('에이전트')['매출액'].sum()
-                    agent_diff = c_agents.subtract(p_agents, fill_value=0)
+                    if total_comm_rev == page_df.groupby('매출월')['매출액'].sum().max(): 
+                        st.info(f"🏆 **역대 최고치 경신!**")
                     
-                    if not agent_diff.empty:
-                        top_agent = agent_diff.idxmax()
-                        top_diff_amt = agent_diff.max()
-                        bottom_agent = agent_diff.idxmin()
-                        bottom_diff_amt = agent_diff.min()
+                    # 🔥 에이전트 전체면 에이전트 분석, 특정 에이전트 선택시 국가 분석
+                    c_groups = curr_comm.groupby(g_col)['매출액'].sum()
+                    p_groups = p_comm_df.groupby(g_col)['매출액'].sum()
+                    group_diff = c_groups.subtract(p_groups, fill_value=0)
+                    
+                    label_name = "에이전트" if sel_agent == "전체" else "국가"
+                    
+                    if not group_diff.empty:
+                        top_g = group_diff.idxmax()
+                        top_diff_amt = group_diff.max()
+                        bottom_g = group_diff.idxmin()
+                        bottom_diff_amt = group_diff.min()
 
                         if top_diff_amt > 0:
-                            p_agent_amt = p_agents.get(top_agent, 0)
-                            a_rate_str = f" / +{(top_diff_amt / p_agent_amt * 100):.1f}%" if p_agent_amt > 0 else " / 순증가(신규)"
-                            st.info(f"🚀 **최대 성장 에이전트:** **{top_agent}** (전월 대비 +{top_diff_amt:,.0f}원{a_rate_str})")
+                            p_g_amt = p_groups.get(top_g, 0)
+                            a_rate_str = f" / +{(top_diff_amt / p_g_amt * 100):.1f}%" if p_g_amt > 0 else " / 순증가(신규)"
+                            st.info(f"🚀 **최대 성장 {label_name}:** **{top_g}** (전월 대비 +{top_diff_amt:,.0f}원{a_rate_str})")
                             
                         if bottom_diff_amt < 0:
-                            p_agent_amt_bottom = p_agents.get(bottom_agent, 0)
-                            b_rate_str = f" / {(bottom_diff_amt / p_agent_amt_bottom * 100):.1f}%" if p_agent_amt_bottom > 0 else ""
-                            st.error(f"🔻 **최대 감소 에이전트:** **{bottom_agent}** (전월 대비 {bottom_diff_amt:,.0f}원{b_rate_str})")
+                            p_g_amt_bottom = p_groups.get(bottom_g, 0)
+                            b_rate_str = f" / {(bottom_diff_amt / p_g_amt_bottom * 100):.1f}%" if p_g_amt_bottom > 0 else ""
+                            st.error(f"🔻 **최대 감소 {label_name}:** **{bottom_g}** (전월 대비 {bottom_diff_amt:,.0f}원{b_rate_str})")
                 else: st.info("비교 데이터가 부족하여 분석을 생략합니다.")
             st.divider()
 
-            st.subheader("📈 월별 수수료 매출 전체 추이")
-            trend_data = df_comm.groupby(['월순서', '매출월', '에이전트'])['매출액'].sum().reset_index().sort_values('월순서')
+            # 🔥 동적 막대 차트 (전체=에이전트별, 특정=국가별)
+            chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
+            st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
+            trend_data = page_df.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
             fig_ctrend = go.Figure()
-            for agent in trend_data['에이전트'].unique():
-                a_data = trend_data[trend_data['에이전트'] == agent]
-                fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=agent, text=agent, textposition='auto'))
+            for g_item in trend_data[g_col].unique():
+                a_data = trend_data[trend_data[g_col] == g_item]
+                fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto'))
             total_cline = trend_data.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).dropna()
             fig_ctrend.add_trace(go.Scatter(x=total_cline.index, y=total_cline.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline.values], textposition="top center"))
-            
-            # 🔥 폭 70% 조정 (bargap=0.45)
             st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
             st.divider()
-            st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
-            if not curr_comm.empty:
-                comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
-                st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
-                
-                st.subheader("📑 상세 정산 내역")
-                st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                
-                table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False])
-                total_comm_sum = table_comm['매출액'].sum()
-                total_row_comm = pd.DataFrame([{'에이전트': '[ 총 합계 ]', '국적': '-', '매출액': total_comm_sum}])
-                table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
-
-                table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
-                st.dataframe(table_comm[['에이전트', '국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+            
+            # 🔥 하단 구성비 및 표 처리
+            if sel_agent == "전체":
+                st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
+                if not curr_comm.empty:
+                    comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
+                    st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
+                    
+                    st.subheader("📑 상세 정산 내역")
+                    st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
+                    table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False])
+                    total_comm_sum = table_comm['매출액'].sum()
+                    total_row_comm = pd.DataFrame([{'에이전트': '[ 총 합계 ]', '국적': '-', '매출액': total_comm_sum}])
+                    table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
+                    table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
+                    st.dataframe(table_comm[['에이전트', '국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+            else:
+                st.subheader(f"🗺️ {sel_month} [{sel_agent}] 소속 국가 구성비")
+                if not curr_comm.empty:
+                    comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
+                    # 특정 에이전트의 국가 구성비는 원형 차트가 더 직관적임
+                    fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_comp.update_traces(textinfo='percent+label')
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                    
+                    st.subheader("📑 상세 정산 내역")
+                    st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
+                    table_comm = curr_comm.groupby(['국적'])['매출액'].sum().reset_index().sort_values(['매출액'], ascending=False)
+                    total_comm_sum = table_comm['매출액'].sum()
+                    total_row_comm = pd.DataFrame([{'국적': '[ 총 합계 ]', '매출액': total_comm_sum}])
+                    table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
+                    table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
+                    st.dataframe(table_comm[['국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
