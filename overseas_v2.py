@@ -39,7 +39,6 @@ def load_all_data():
     res_m = requests.get(URL_MAIN)
     df_m_raw = pd.read_csv(StringIO(res_m.content.decode('utf-8-sig')), header=None)
     
-    # 제목줄 찾기
     h_idx = 0
     for i in range(len(df_m_raw)):
         if '이름' in "".join(df_m_raw.iloc[i].fillna('').astype(str)):
@@ -49,7 +48,6 @@ def load_all_data():
     df_m.columns = [str(c).strip() for c in df_m.iloc[h_idx].fillna('미지정')]
     df_m = df_m.drop(range(h_idx + 1)).reset_index(drop=True)
     
-    # [에러 방지] 구분/해외 필터링 & 수납액 찾기
     div_col = [c for c in df_m.columns if '구분' in c or '해외' in c]
     if div_col:
         df_m = df_m[df_m[div_col[0]].astype(str).str.contains('해외', na=False)]
@@ -59,7 +57,7 @@ def load_all_data():
     df_m['매출액_숫자'] = df_m[amt_col[0]].apply(to_numeric) / 1.1 if amt_col else 0
     df_m['권역'] = df_m['국적'].apply(get_region)
     
-    # 2. 수수료 데이터 로드 (고정 열: D-국적, E-월, I-매출)
+    # 2. 수수료 데이터 로드
     comm_list = []
     for name, url in COMMISSION_URLS.items():
         try:
@@ -86,29 +84,28 @@ def format_date(df, col):
         df['날짜형'] = pd.to_datetime(df[target_col[0]], errors='coerce')
         df = df.dropna(subset=['날짜형'])
         df['매출월'] = df['날짜형'].dt.strftime('%y년 %m월')
-        df['월순서'] = df['날짜형'].dt.to_period('M').astype(str) # 정렬용
+        df['월순서'] = df['날짜형'].dt.to_period('M').astype(str)
     return df
 
 df_main = format_date(df_main_raw, '수납일')
 df_comm = format_date(df_comm_raw, '날짜')
 
+# 🔥 [핵심 해결] 전체 날짜를 오름차순(과거->최신)으로 완벽하게 정렬된 리스트 생성
+sorted_months_df = df_main[['월순서', '매출월']].drop_duplicates().sort_values('월순서')
+CHRONOLOGICAL_MONTHS = sorted_months_df['매출월'].tolist()
+
 # --- 사이드바 ---
 st.sidebar.title("🏨 온리프 관리 시스템")
 menu = st.sidebar.radio("메뉴 이동", ["🌐 전체 매출 요약", "💸 수수료 매출(에이전트별)"])
 
-# 두 데이터프레임의 월 목록을 합쳐서 에러 방지
-all_months = set()
-if '매출월' in df_main.columns: all_months.update(df_main['매출월'].unique())
-if '매출월' in df_comm.columns: all_months.update(df_comm['매출월'].unique())
-month_list = sorted(list(all_months), reverse=True)
-
+month_list = sorted(list(set(CHRONOLOGICAL_MONTHS)), reverse=True) # 선택박스는 최신순
 if not month_list:
     st.error("데이터에서 날짜 정보를 찾을 수 없습니다.")
 else:
     sel_month = st.sidebar.selectbox("📅 조회 월 선택", month_list)
 
     # ==========================================================
-    # --- 메뉴 1: 전체 매출 요약 (완벽 복원) ---
+    # --- 메뉴 1: 전체 매출 요약 ---
     # ==========================================================
     if menu == "🌐 전체 매출 요약":
         st.title(f"🌐 {sel_month} 전체 매출 요약")
@@ -122,22 +119,19 @@ else:
 
             c1, c2 = st.columns([1, 1.2])
             with c1:
-                # 1. 원형 그래프
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
                 fig_pie = px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_pie.update_traces(textinfo='percent+label')
                 st.plotly_chart(fig_pie, use_container_width=True)
             
             with c2:
-                # 2. 우측 정렬 표
                 st.subheader(f"📑 {view_mode} 상세 실적")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 table_df = n_df.sort_values('매출액_숫자', ascending=False)
                 table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
-                st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, 
-                             column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+                st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
 
-            # 3. 월별 추이 그래프
+            # 3. 월별 추이 그래프 (🔥 X축 강제 고정 적용)
             st.divider()
             st.subheader(f"📈 전체 월별 성장 추이 ({view_mode} 기준)")
             trend_df = df_main.groupby(['월순서', '매출월', group_col])['매출액_숫자'].sum().reset_index().sort_values('월순서')
@@ -146,10 +140,15 @@ else:
                 item_data = trend_df[trend_df[group_col] == item]
                 fig_trend.add_trace(go.Bar(x=item_data['매출월'], y=item_data['매출액_숫자'], name=item, text=item, textposition='auto'))
             
-            # 합계 라인
             total_trend = df_main.groupby(['월순서', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('월순서')
             fig_trend.add_trace(go.Scatter(x=total_trend['매출월'], y=total_trend['매출액_숫자'], name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_trend['매출액_숫자']], textposition="top center"))
-            fig_trend.update_layout(barmode='stack', hovermode="x unified")
+            
+            # 🔥 여기서 X축 순서를 CHRONOLOGICAL_MONTHS 리스트대로 강제 고정합니다!
+            fig_trend.update_layout(
+                barmode='stack', 
+                hovermode="x unified",
+                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}
+            )
             st.plotly_chart(fig_trend, use_container_width=True)
         else:
             st.warning("메인 매출 데이터가 없습니다.")
@@ -161,7 +160,6 @@ else:
         st.title(f"💸 수수료 매출 (에이전트별) 분석")
         
         if not df_comm.empty:
-            # 1. 월별 전체 추이
             st.subheader("📈 월별 수수료 매출 전체 추이")
             trend_data = df_comm.groupby(['월순서', '매출월', '에이전트'])['매출액'].sum().reset_index().sort_values('월순서')
             
@@ -171,12 +169,18 @@ else:
                 a_data = trend_data[trend_data['에이전트'] == agent]
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=agent, text=agent, textposition='auto'))
             
-            total_cline = trend_data.groupby('매출월')['매출액'].sum().reindex(trend_data['매출월'].unique())
+            total_cline = trend_data.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).dropna()
             fig_ctrend.add_trace(go.Scatter(x=total_cline.index, y=total_cline.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline.values], textposition="top center"))
-            fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500)
+            
+            # 🔥 여기도 X축 강제 고정!
+            fig_ctrend.update_layout(
+                barmode='stack', 
+                hovermode="x unified", 
+                height=500,
+                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}
+            )
             st.plotly_chart(fig_ctrend, use_container_width=True)
 
-            # 2. 에이전트별 국가 구성비
             st.divider()
             st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
             
@@ -188,7 +192,6 @@ else:
                 fig_comp.update_layout(barmode='stack', height=400)
                 st.plotly_chart(fig_comp, use_container_width=True)
                 
-                # 상세 표
                 st.subheader("📑 상세 정산 내역")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().sort_values(['에이전트', '매출액'], ascending=[True, False])
