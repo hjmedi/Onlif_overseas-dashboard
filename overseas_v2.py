@@ -54,7 +54,6 @@ if raw_data is not None:
     df.columns = [str(c).strip() for c in df.iloc[header_idx].fillna('미지정')]
     df = df.drop(range(header_idx + 1)).reset_index(drop=True)
 
-    # 필터링 및 계산
     filter_col = [c for c in df.columns if '국내' in c or '해외' in c or '구분' in c]
     if filter_col:
         df = df[df[filter_col[0]].astype(str).str.contains('해외', na=False)]
@@ -85,7 +84,6 @@ if raw_data is not None:
     st.header(f"{month_revenue:,.0f}원")
     st.divider()
 
-    # 상단 그래프 및 표
     c1, c2 = st.columns([1, 1.2])
     with c1:
         n_df = filtered_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
@@ -99,22 +97,20 @@ if raw_data is not None:
         
         table_df = n_df.sort_values(by='매출액_숫자', ascending=False).reset_index(drop=True)
         
-        # 💡 [포맷 수정] NumberColumn의 format을 천단위 콤마가 포함되도록 수정
+        # 💡 [콤마 해결책] 데이터를 보여주기 전에 콤마가 찍힌 '문자열'로 변환
+        table_df['매출액(표시)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
+        
         st.dataframe(
-            table_df,
+            table_df[[group_col, '매출액(표시)']],
             use_container_width=True,
             hide_index=True,
             column_config={
-                group_col: st.column_config.TextColumn(f"{view_mode}", width="medium"),
-                "매출액_숫자": st.column_config.NumberColumn(
-                    "매출액",
-                    format="%d", # 정수형으로 표시하되, NumberColumn은 기본적으로 콤마를 지원합니다.
-                    width="medium"
-                )
+                group_col: st.column_config.TextColumn(f"{view_mode}"),
+                "매출액(표시)": st.column_config.TextColumn("매출액", help="부가세 제외 공급가액", width="medium")
             }
         )
 
-    # '기타' 구성 확인
+    # '기타' 확인
     etc_nations = filtered_df[filtered_df['권역'] == '기타']['국적'].unique()
     if len(etc_nations) > 0:
         with st.expander(f"ℹ️ {selected_month} '기타' 권역 구성 국가 확인"):
