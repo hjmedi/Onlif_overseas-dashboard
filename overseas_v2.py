@@ -150,10 +150,12 @@ else:
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
+                
                 table_df = n_df.sort_values('매출액_숫자', ascending=False)
                 total_sum = table_df['매출액_숫자'].sum()
                 total_row = pd.DataFrame([{group_col: '[ 총 합계 ]', '매출액_숫자': total_sum}])
                 table_df = pd.concat([table_df, total_row], ignore_index=True)
+                
                 table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
                 st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
             
@@ -177,11 +179,9 @@ else:
     # --- 메뉴 2: 수수료 매출 (에이전트별) ---
     # ==========================================================
     else:
-        # 🔥 수수료 페이지 전용 사이드바 필터 (에이전트 선택)
         agent_options = ["전체"] + sorted(df_comm['에이전트'].dropna().unique().tolist())
         sel_agent = st.sidebar.selectbox("🧑‍💼 에이전트 상세 필터", agent_options)
 
-        # 필터링 로직: 전체면 에이전트 그룹, 특정 선택이면 국적 그룹
         if sel_agent == "전체":
             page_df = df_comm.copy()
             g_col = '에이전트'
@@ -219,7 +219,6 @@ else:
                     if total_comm_rev == page_df.groupby('매출월')['매출액'].sum().max(): 
                         st.info(f"🏆 **역대 최고치 경신!**")
                     
-                    # 🔥 에이전트 전체면 에이전트 분석, 특정 에이전트 선택시 국가 분석
                     c_groups = curr_comm.groupby(g_col)['매출액'].sum()
                     p_groups = p_comm_df.groupby(g_col)['매출액'].sum()
                     group_diff = c_groups.subtract(p_groups, fill_value=0)
@@ -244,7 +243,6 @@ else:
                 else: st.info("비교 데이터가 부족하여 분석을 생략합니다.")
             st.divider()
 
-            # 🔥 동적 막대 차트 (전체=에이전트별, 특정=국가별)
             chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
             st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
             trend_data = page_df.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
@@ -276,17 +274,21 @@ else:
             else:
                 st.subheader(f"🗺️ {sel_month} [{sel_agent}] 소속 국가 구성비")
                 if not curr_comm.empty:
-                    comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
-                    # 특정 에이전트의 국가 구성비는 원형 차트가 더 직관적임
-                    fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                    fig_comp.update_traces(textinfo='percent+label')
-                    st.plotly_chart(fig_comp, use_container_width=True)
+                    # 🔥 [요청 반영] 특정 에이전트 선택 시 원형 그래프와 표를 좌우 분할하여 배치!
+                    col1, col2 = st.columns([1, 1.2])
                     
-                    st.subheader("📑 상세 정산 내역")
-                    st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                    table_comm = curr_comm.groupby(['국적'])['매출액'].sum().reset_index().sort_values(['매출액'], ascending=False)
-                    total_comm_sum = table_comm['매출액'].sum()
-                    total_row_comm = pd.DataFrame([{'국적': '[ 총 합계 ]', '매출액': total_comm_sum}])
-                    table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
-                    table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
-                    st.dataframe(table_comm[['국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+                    with col1:
+                        comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
+                        fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        fig_comp.update_traces(textinfo='percent+label')
+                        st.plotly_chart(fig_comp, use_container_width=True)
+                        
+                    with col2:
+                        st.subheader("📑 상세 정산 내역")
+                        st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
+                        table_comm = curr_comm.groupby(['국적'])['매출액'].sum().reset_index().sort_values(['매출액'], ascending=False)
+                        total_comm_sum = table_comm['매출액'].sum()
+                        total_row_comm = pd.DataFrame([{'국적': '[ 총 합계 ]', '매출액': total_comm_sum}])
+                        table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
+                        table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
+                        st.dataframe(table_comm[['국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
