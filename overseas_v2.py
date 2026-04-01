@@ -41,7 +41,7 @@ if raw_data is not None:
     df.columns = [str(c).strip() for c in df.iloc[header_idx].fillna('미지정')]
     df = df.drop(range(header_idx + 1)).reset_index(drop=True)
 
-    # 1️⃣ 해외 데이터만 추출
+    # 1️⃣ 해외 데이터 필터링
     filter_col = [c for c in df.columns if '국내' in c or '해외' in c or '구분' in c]
     if filter_col:
         df = df[df[filter_col[0]].astype(str).str.contains('해외', na=False)]
@@ -52,24 +52,24 @@ if raw_data is not None:
         amt_col = [c for c in df.columns if '수납액' in c or '금액' in c]
     df['매출액_숫자'] = df[amt_col[0]].apply(to_numeric_net) if amt_col else 0
 
-    # 3️⃣ 날짜 처리 (✨ 무적의 정렬 로직 적용)
+    # 3️⃣ 날짜 처리 (강력한 정렬 로직)
     date_col = [c for c in df.columns if '수납일' in c]
     if date_col:
         df['날짜형식'] = pd.to_datetime(df[date_col[0]], errors='coerce')
         df = df.dropna(subset=['날짜형식'])
         
-        # 📌 핵심: 컴퓨터가 정렬하기 가장 좋은 숫자 형태(202510, 202511...)로 정렬 키 생성
-        df['정렬키'] = df['날짜형식'].dt.year * 100 + df['날짜형식'].dt.month
-        # 화면 표시용 이름
+        # 월의 첫날로 통일 (정렬용 표준 날짜 생성: 2025-10-01, 2025-11-01...)
+        df['월날짜'] = df['날짜형식'].dt.to_period('M').dt.to_timestamp()
+        # 화면 표시용 텍스트
         df['매출월'] = df['날짜형식'].dt.strftime('%y년 %m월')
 
     # --- 사이드바 설정 ---
     st.sidebar.header("📊 메뉴 이동")
     st.sidebar.radio("리스트 선택:", ["🌐 전체 매출 요약 (원형 그래프)"])
     
-    # 사이드바 선택 목록 (최신순 정렬)
-    sidebar_options = df.sort_values('정렬키', ascending=False)['매출월'].unique()
-    selected_month = st.sidebar.selectbox("📅 조회할 월 선택", sidebar_options)
+    # 사이드바 목록 (날짜순 정렬)
+    sidebar_df = df[['월날짜', '매출월']].drop_duplicates().sort_values('월날짜', ascending=False)
+    selected_month = st.sidebar.selectbox("📅 조회할 월 선택", sidebar_df['매출월'].tolist())
 
     # --- 데이터 필터링 ---
     filtered_df = df[df['매출월'] == selected_month]
@@ -97,26 +97,26 @@ if raw_data is not None:
             table_df['매출액'] = table_df['매출액_숫자'].map('{:,.0f}'.format)
             st.table(table_df[['국적', '매출액', '비중']])
 
-    # --- 하단 성장 추이 (✨ 정렬키를 이용해 시간순 강제 정렬) ---
+    # --- 하단 성장 추이 (✨ 날짜축 강제 정렬 적용) ---
     st.divider()
     st.subheader("📈 전체 해외매출 월별 성장 추이 (국적별 구성)")
     
-    # 정렬키를 포함해서 그룹화한 뒤, 정렬키 기준으로 데이터 정렬
-    trend_raw = df.groupby(['정렬키', '매출월', '국적'])['매출액_숫자'].sum().reset_index()
-    trend_raw = trend_raw.sort_values('정렬키') 
-    
-    total_trend = df.groupby(['정렬키', '매출월'])['매출액_숫자'].sum().reset_index().sort_values('정렬키')
+    # 월(표준날짜) 기준으로 데이터 그룹화
+    trend_raw = df.groupby(['월날짜', '매출월', '국적'])['매출액_숫자'].sum().reset_index()
+    # 합계 데이터도 월(표준날짜) 기준
+    total_trend = df.groupby(['월날짜', '매출월'])['매출액_숫자'].sum().reset_index()
 
     fig_trend = go.Figure()
 
     # 1. 막대 그래프 (국적별 쌓기)
     for nation in trend_raw['국적'].unique():
-        n_data = trend_raw[trend_raw['국적'] == nation]
+        n_data = trend_raw[trend_raw['국적'] == nation].sort_values('월날짜')
         fig_trend.add_trace(go.Bar(
             x=n_data['매출월'], y=n_data['매출액_숫자'], name=nation
         ))
 
     # 2. 선 그래프 (합계 추세선)
+    total_trend = total_trend.sort_values('월날짜')
     fig_trend.add_trace(go.Scatter(
         x=total_trend['매출월'], y=total_trend['매출액_숫자'],
         name='해외매출 총합', line=dict(color='black', width=3),
@@ -127,7 +127,7 @@ if raw_data is not None:
 
     fig_trend.update_layout(
         barmode='stack',
-        xaxis={'type': 'category'}, # 데이터가 들어온 순서(정렬된 순서)대로 표시
+        xaxis={'categoryorder': 'array', 'categoryarray': total_trend['매출월'].tolist()}, # 정렬된 리스트 순서대로 강제 고정
         hovermode="x unified"
     )
     st.plotly_chart(fig_trend, use_container_width=True)
