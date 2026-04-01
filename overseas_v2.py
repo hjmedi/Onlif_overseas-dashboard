@@ -8,7 +8,7 @@ from io import StringIO
 st.set_page_config(page_title="온리프 해외매출 실시간 대시보드", layout="wide")
 
 # ⚠️ 여기에 새로 복사한 '웹에 게시' CSV 주소를 붙여넣으세요.
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS..." 
+CSV_URL = "https://docs.google.com/spreadsheets/d/1fZ0uLCwC4wqirxy_WFbfOwmbIeLpPRfsIBEwqC4hdIE/edit?gid=0#gid=0" 
 
 # 디자인 테마 (권역별 색상)
 COLOR_MAP = {
