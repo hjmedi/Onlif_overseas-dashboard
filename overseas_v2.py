@@ -5,7 +5,7 @@ import requests
 from io import StringIO
 
 # 1. 페이지 기본 설정
-st.set_page_config(page_title="온리프 해외 매출 월별 분석", layout="wide")
+st.set_page_config(page_title="온리프 해외 매출 분석 (공급가 기준)", layout="wide")
 
 # ✅ 수납raw 시트 CSV 주소
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=0&single=true&output=csv"
@@ -18,10 +18,13 @@ def get_data(url):
         return df
     except: return None
 
-def to_numeric(val):
+def to_numeric_net(val):
+    """금액을 숫자로 변환 후 부가세 제외(1.1로 나눔)"""
     if pd.isna(val): return 0
     s = str(val).replace('₩', '').replace(',', '').replace(' ', '').strip()
-    try: return float(s)
+    try: 
+        amount = float(s)
+        return amount / 1.1  # 🔥 부가세 제외 계산
     except: return 0
 
 raw_data = get_data(CSV_URL)
@@ -44,17 +47,17 @@ if raw_data is not None:
     if filter_col:
         df = df[df[filter_col[0]].astype(str).str.contains('해외', na=False)]
 
-    # 2️⃣ [매출액 계산] '수납액 (CRM)' 컬럼 처리
+    # 2️⃣ [매출액 계산] '수납액 (CRM)' 컬럼 처리 (1.1 반영)
     amt_col = [c for c in df.columns if '수납액' in c and 'CRM' in c]
     if not amt_col:
         amt_col = [c for c in df.columns if '수납액' in c or '금액' in c]
     
     if amt_col:
-        df['매출액_숫자'] = df[amt_col[0]].apply(to_numeric)
+        df['매출액_숫자'] = df[amt_col[0]].apply(to_numeric_net)
     else:
         df['매출액_숫자'] = 0
 
-    # 3️⃣ [날짜 처리] E열 '수납일'을 월 단위로 변환
+    # 3️⃣ [날짜 처리]
     date_col = [c for c in df.columns if '수납일' in c]
     if date_col:
         df['날짜형식'] = pd.to_datetime(df[date_col[0]], errors='coerce')
@@ -62,25 +65,19 @@ if raw_data is not None:
     else:
         df['매출월'] = "날짜미상"
 
-    # ------------------ 사이드바 설정 ------------------
+    # --- 사이드바 설정 ---
     st.sidebar.header("📊 메뉴 이동")
-    st.sidebar.radio("원하시는 리스트를 선택하세요:", ["🌐 전체 매출 요약 (원형 그래프)"])
+    st.sidebar.radio("리스트 선택:", ["🌐 국적별 매출 분석"])
     
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📅 조회할 월을 선택하세요")
-    
-    # 데이터에 있는 월 목록 추출 (정렬됨)
     month_list = sorted(df['매출월'].dropna().unique(), reverse=True)
-    selected_month = st.sidebar.selectbox("월 선택", month_list)
+    selected_month = st.sidebar.selectbox("📅 조회할 월 선택", month_list)
 
-    # 선택된 월로 데이터 필터링
     filtered_df = df[df['매출월'] == selected_month]
-    # --------------------------------------------------
 
-    st.title(f"📊 온리프 해외매출 국적별 비중 분석")
-    st.caption(f"📍 {selected_month} 해외매출 종합")
+    # --- 메인 화면 ---
+    st.title(f"📊 해외매출 국적별 비중 분석 (VAT 제외)")
+    st.caption(f"📍 {selected_month} 데이터 (공급가액 기준)")
     
-    # 상단 요약 지표 (선택된 월 기준)
     month_revenue = filtered_df['매출액_숫자'].sum()
     st.header(f"{month_revenue:,.0f}원")
     st.divider()
@@ -97,16 +94,18 @@ if raw_data is not None:
             st.plotly_chart(fig1, use_container_width=True)
 
         with c2:
-            st.subheader(f"📊 {selected_month} 국적별 상세 실적")
-            # 표 형태의 데이터 정리
+            st.subheader(f"📊 {selected_month} 상세 실적 (공급가)")
             table_df = n_df.sort_values(by='매출액_숫자', ascending=False).reset_index(drop=True)
             table_df['비중'] = (table_df['매출액_숫자'] / month_revenue * 100).map('{:.1f}%'.format)
             table_df['매출액'] = table_df['매출액_숫자'].map('{:,.0f}'.format)
             st.table(table_df[['국적', '매출액', '비중']])
         
         st.divider()
-        st.subheader(f"🔍 {selected_month} 주요 유입 경로")
-        p_col = [c for c in df.columns if '유입경로' in c]
-        if p_col:
-            p_df = filtered_df.groupby(p_col[0])['매출액_숫자'].sum().sort_values(ascending=True).reset_index()
-            p_
+        st.subheader("📋 상세 내역 (데이터 검증용)")
+        show_cols = [c for c in ['수납일', '이름', '국적', amt_col[0] if amt_col else None] if c in df.columns]
+        st.dataframe(filtered_df[show_cols], use_container_width=True)
+            
+    else:
+        st.warning(f"{selected_month} 데이터가 없습니다.")
+else:
+    st.error("데이터 로딩 실패")
