@@ -141,19 +141,45 @@ else:
                 else: st.info("비교 데이터 없음")
             st.divider()
 
+            if prev_total > 0:
+                st.subheader(f"🌊 전월 대비 {view_mode} 매출 증감 워터폴")
+                curr_series = m_df.groupby(group_col)['매출액_숫자'].sum()
+                prev_series = prev_m_df.groupby(group_col)['매출액_숫자'].sum()
+                diff_series = curr_series.subtract(prev_series, fill_value=0).sort_values(ascending=False)
+                
+                wf_x = [f"{prev_month}<br>(전월)"]
+                wf_y = [prev_total]
+                wf_measure = ["absolute"]
+                for item, diff in diff_series.items():
+                    if diff != 0:
+                        wf_x.append(str(item))
+                        wf_y.append(diff)
+                        wf_measure.append("relative")
+                        
+                wf_x.append(f"{sel_month}<br>(당월)")
+                wf_y.append(total_rev)
+                wf_measure.append("total")
+                
+                fig_wf = go.Figure(go.Waterfall(
+                    name="MoM 증감", orientation="v", measure=wf_measure, x=wf_x, y=wf_y, textposition="outside",
+                    text=[f"{v:,.0f}" if v != 0 else "" for v in wf_y],
+                    decreasing={"marker": {"color": "#FF6B6B"}}, increasing={"marker": {"color": "#4ECDC4"}}, totals={"marker": {"color": "#45B7D1"}}
+                ))
+                fig_wf.update_layout(waterfallgap=0.3, showlegend=False, height=450, margin=dict(t=30, b=30))
+                st.plotly_chart(fig_wf, use_container_width=True)
+                st.divider()
+
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
                 n_df = n_df[n_df['매출액_숫자'] > 0]
                 st.plotly_chart(px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textinfo='percent+label'), use_container_width=True)
             
-            # 📑 상세 실적 표 (조회 월, 전월, 전월 대비 포함)
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 
                 curr_group = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index().rename(columns={'매출액_숫자': '당월매출'})
-                
                 if prev_total > 0:
                     prev_group = prev_m_df.groupby(group_col)['매출액_숫자'].sum().reset_index().rename(columns={'매출액_숫자': '전월매출'})
                     table_df = pd.merge(curr_group, prev_group, on=group_col, how='outer').fillna(0)
@@ -165,31 +191,25 @@ else:
                 table_df = table_df.sort_values('당월매출', ascending=False)
                 
                 total_row = pd.DataFrame([{
-                    group_col: '[ 총 합계 ]', 
-                    '당월매출': table_df['당월매출'].sum(), 
-                    '전월매출': table_df['전월매출'].sum(), 
-                    '증감액': table_df['증감액'].sum()
+                    group_col: '[ 총 합계 ]', '당월매출': table_df['당월매출'].sum(), 
+                    '전월매출': table_df['전월매출'].sum(), '증감액': table_df['증감액'].sum()
                 }])
                 table_df = pd.concat([table_df, total_row], ignore_index=True)
-                
                 table_df[f'{sel_month}'] = table_df['당월매출'].apply(lambda x: f"{int(x):,}")
                 
                 if prev_total > 0:
                     table_df[f'{prev_month}(전월)'] = table_df['전월매출'].apply(lambda x: f"{int(x):,}")
-                    
                     def format_diff(row):
                         c, p, d = row['당월매출'], row['전월매출'], row['증감액']
                         if p == 0 and c > 0: return f"+{int(d):,} (순증가)"
                         if p == 0 and c == 0: return "-"
                         if d == 0: return "-"
-                        
                         rate = (d / p) * 100
                         sign = "+" if d > 0 else ""
                         icon = "🔺 " if d > 0 else "🔻 "
                         return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                         
                     table_df['전월대비'] = table_df.apply(format_diff, axis=1)
-                    
                     display_cols = [group_col, f'{sel_month}', f'{prev_month}(전월)', '전월대비']
                     col_config = {
                         f'{sel_month}': st.column_config.TextColumn(alignment="right"),
@@ -200,12 +220,7 @@ else:
                     display_cols = [group_col, f'{sel_month}']
                     col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
 
-                st.dataframe(
-                    table_df[display_cols], 
-                    use_container_width=True, 
-                    hide_index=True, 
-                    column_config=col_config
-                )
+                st.dataframe(table_df[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
 
             if view_mode == "권역별":
                 etc = m_df[m_df['권역'] == '기타']['국적'].dropna().unique()
@@ -222,7 +237,6 @@ else:
             
             tot_series = df_main.groupby('매출월')['매출액_숫자'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
             fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot_series.values], textposition="top center"))
-            
             st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
     # ==========================================================
@@ -303,11 +317,13 @@ else:
             
             total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
             fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
-            
             st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
 
             st.divider()
             
+            # ==========================================
+            # 📑 상세 정산 내역 표 (메뉴 2: 전월 비교 추가 반영)
+            # ==========================================
             if sel_agent == "전체":
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
                 if not curr_comm.empty:
@@ -317,13 +333,53 @@ else:
                     
                     st.subheader("📑 상세 정산 내역")
                     st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                    table_comm = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
-                    table_comm = table_comm[table_comm['매출액'] > 0].sort_values(['에이전트', '매출액'], ascending=[True, False])
-                    total_comm_sum = table_comm['매출액'].sum()
-                    total_row_comm = pd.DataFrame([{'에이전트': '[ 총 합계 ]', '국적': '-', '매출액': total_comm_sum}])
+                    
+                    curr_group = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().rename(columns={'매출액': '당월매출'})
+                    
+                    if p_comm_total > 0:
+                        prev_group = p_comm_df.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().rename(columns={'매출액': '전월매출'})
+                        table_comm = pd.merge(curr_group, prev_group, on=['에이전트', '국적'], how='outer').fillna(0)
+                    else:
+                        table_comm = curr_group.copy()
+                        table_comm['전월매출'] = 0
+
+                    table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
+                    table_comm = table_comm.sort_values(['에이전트', '당월매출'], ascending=[True, False])
+                    
+                    total_row_comm = pd.DataFrame([{
+                        '에이전트': '[ 총 합계 ]', '국적': '-', 
+                        '당월매출': table_comm['당월매출'].sum(),
+                        '전월매출': table_comm['전월매출'].sum(),
+                        '증감액': table_comm['증감액'].sum()
+                    }])
                     table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
-                    table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
-                    st.dataframe(table_comm[['에이전트', '국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+                    
+                    table_comm[f'{sel_month}'] = table_comm['당월매출'].apply(lambda x: f"{int(x):,}")
+                    
+                    if p_comm_total > 0:
+                        table_comm[f'{p_month}(전월)'] = table_comm['전월매출'].apply(lambda x: f"{int(x):,}")
+                        def format_diff(row):
+                            c, p, d = row['당월매출'], row['전월매출'], row['증감액']
+                            if p == 0 and c > 0: return f"+{int(d):,} (순증가)"
+                            if p == 0 and c == 0: return "-"
+                            if d == 0: return "-"
+                            rate = (d / p) * 100
+                            sign = "+" if d > 0 else ""
+                            icon = "🔺 " if d > 0 else "🔻 "
+                            return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
+                            
+                        table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
+                        display_cols = ['에이전트', '국적', f'{sel_month}', f'{p_month}(전월)', '전월대비']
+                        col_config = {
+                            f'{sel_month}': st.column_config.TextColumn(alignment="right"),
+                            f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
+                            '전월대비': st.column_config.TextColumn(alignment="right")
+                        }
+                    else:
+                        display_cols = ['에이전트', '국적', f'{sel_month}']
+                        col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
+                        
+                    st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
             else:
                 st.subheader(f"🗺️ {sel_month} [{sel_agent}] 소속 국가 구성비")
                 if not curr_comm.empty:
@@ -339,10 +395,50 @@ else:
                     with col2:
                         st.subheader("📑 상세 정산 내역")
                         st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
-                        table_comm = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
-                        table_comm = table_comm[table_comm['매출액'] > 0].sort_values(['매출액'], ascending=False)
-                        total_comm_sum = table_comm['매출액'].sum()
-                        total_row_comm = pd.DataFrame([{'국적': '[ 총 합계 ]', '매출액': total_comm_sum}])
+                        
+                        curr_group = curr_comm.groupby(['국적'])['매출액'].sum().reset_index().rename(columns={'매출액': '당월매출'})
+                        
+                        if p_comm_total > 0:
+                            prev_group = p_comm_df.groupby(['국적'])['매출액'].sum().reset_index().rename(columns={'매출액': '전월매출'})
+                            table_comm = pd.merge(curr_group, prev_group, on=['국적'], how='outer').fillna(0)
+                        else:
+                            table_comm = curr_group.copy()
+                            table_comm['전월매출'] = 0
+
+                        table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
+                        table_comm = table_comm.sort_values('당월매출', ascending=False)
+                        
+                        total_row_comm = pd.DataFrame([{
+                            '국적': '[ 총 합계 ]', 
+                            '당월매출': table_comm['당월매출'].sum(),
+                            '전월매출': table_comm['전월매출'].sum(),
+                            '증감액': table_comm['증감액'].sum()
+                        }])
                         table_comm = pd.concat([table_comm, total_row_comm], ignore_index=True)
-                        table_comm['매출액(원)'] = table_comm['매출액'].apply(lambda x: f"{int(x):,}")
-                        st.dataframe(table_comm[['국적', '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
+                        
+                        table_comm[f'{sel_month}'] = table_comm['당월매출'].apply(lambda x: f"{int(x):,}")
+                        
+                        if p_comm_total > 0:
+                            table_comm[f'{p_month}(전월)'] = table_comm['전월매출'].apply(lambda x: f"{int(x):,}")
+                            def format_diff(row):
+                                c, p, d = row['당월매출'], row['전월매출'], row['증감액']
+                                if p == 0 and c > 0: return f"+{int(d):,} (순증가)"
+                                if p == 0 and c == 0: return "-"
+                                if d == 0: return "-"
+                                rate = (d / p) * 100
+                                sign = "+" if d > 0 else ""
+                                icon = "🔺 " if d > 0 else "🔻 "
+                                return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
+                                
+                            table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
+                            display_cols = ['국적', f'{sel_month}', f'{p_month}(전월)', '전월대비']
+                            col_config = {
+                                f'{sel_month}': st.column_config.TextColumn(alignment="right"),
+                                f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
+                                '전월대비': st.column_config.TextColumn(alignment="right")
+                            }
+                        else:
+                            display_cols = ['국적', f'{sel_month}']
+                            col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
+                            
+                        st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
