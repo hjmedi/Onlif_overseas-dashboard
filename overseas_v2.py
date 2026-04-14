@@ -165,7 +165,6 @@ else:
                 st.subheader(f"📑 {view_mode} 상세 실적")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 
-                # 🔥 증감 포맷팅 함수 (메인 표 및 권역 상세 표에서 공통 사용)
                 def format_diff_func(row):
                     c, p, d = row['당월매출'], row['전월매출'], row['증감액']
                     if p == 0 and c > 0: return f"+{int(d):,} (순증가)"
@@ -214,12 +213,10 @@ else:
             # ==========================================
             if view_mode == "권역별":
                 st.markdown("<br>#### 🔍 권역별 소속 국가 상세 (클릭하여 펼치기)", unsafe_allow_html=True)
-                # 매출이 발생한 권역 목록 추출 (총합계 제외)
                 regions = [r for r in table_df[group_col].tolist() if r != '[ 총 합계 ]']
                 
                 for reg in regions:
                     with st.expander(f"📂 {reg} 소속 국가 상세 실적"):
-                        # 해당 권역의 국가별 데이터만 필터링하여 그룹화
                         reg_curr = m_df[m_df['권역'] == reg].groupby('국적')['매출액_숫자'].sum().reset_index().rename(columns={'매출액_숫자': '당월매출'})
                         
                         if prev_total > 0:
@@ -231,6 +228,15 @@ else:
                             
                         reg_table['증감액'] = reg_table['당월매출'] - reg_table['전월매출']
                         reg_table = reg_table.sort_values('당월매출', ascending=False)
+                        
+                        # 🔥 하위 국가 목록에도 [ 총 합계 ] 행 추가
+                        total_row_reg = pd.DataFrame([{
+                            '국적': '[ 총 합계 ]', 
+                            '당월매출': reg_table['당월매출'].sum(),
+                            '전월매출': reg_table['전월매출'].sum(),
+                            '증감액': reg_table['증감액'].sum()
+                        }])
+                        reg_table = pd.concat([reg_table, total_row_reg], ignore_index=True)
                         
                         reg_table[f'{sel_month}'] = reg_table['당월매출'].apply(lambda x: f"{int(x):,}")
                         
