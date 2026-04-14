@@ -141,34 +141,6 @@ else:
                 else: st.info("비교 데이터 없음")
             st.divider()
 
-            if prev_total > 0:
-                st.subheader(f"🌊 전월 대비 {view_mode} 매출 증감 워터폴")
-                curr_series = m_df.groupby(group_col)['매출액_숫자'].sum()
-                prev_series = prev_m_df.groupby(group_col)['매출액_숫자'].sum()
-                diff_series = curr_series.subtract(prev_series, fill_value=0).sort_values(ascending=False)
-                
-                wf_x = [f"{prev_month}<br>(전월)"]
-                wf_y = [prev_total]
-                wf_measure = ["absolute"]
-                for item, diff in diff_series.items():
-                    if diff != 0:
-                        wf_x.append(str(item))
-                        wf_y.append(diff)
-                        wf_measure.append("relative")
-                        
-                wf_x.append(f"{sel_month}<br>(당월)")
-                wf_y.append(total_rev)
-                wf_measure.append("total")
-                
-                fig_wf = go.Figure(go.Waterfall(
-                    name="MoM 증감", orientation="v", measure=wf_measure, x=wf_x, y=wf_y, textposition="outside",
-                    text=[f"{v:,.0f}" if v != 0 else "" for v in wf_y],
-                    decreasing={"marker": {"color": "#FF6B6B"}}, increasing={"marker": {"color": "#4ECDC4"}}, totals={"marker": {"color": "#45B7D1"}}
-                ))
-                fig_wf.update_layout(waterfallgap=0.3, showlegend=False, height=450, margin=dict(t=30, b=30))
-                st.plotly_chart(fig_wf, use_container_width=True)
-                st.divider()
-
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
@@ -210,7 +182,7 @@ else:
                         return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                         
                     table_df['전월대비'] = table_df.apply(format_diff, axis=1)
-                    # 🔥 여기서 출력 순서를 전월 -> 당월 -> 전월대비 로 변경!
+                    # 출력 순서를 전월 -> 당월 -> 전월대비로 유지
                     display_cols = [group_col, f'{prev_month}(전월)', f'{sel_month}', '전월대비']
                     col_config = {
                         f'{prev_month}(전월)': st.column_config.TextColumn(alignment="right"),
@@ -323,7 +295,7 @@ else:
             st.divider()
             
             # ==========================================
-            # 📑 상세 정산 내역 표 (메뉴 2: 전월 비교 추가 반영)
+            # 📑 상세 정산 내역 표 (메뉴 2: 전월 비교 유지)
             # ==========================================
             if sel_agent == "전체":
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
@@ -370,7 +342,6 @@ else:
                             return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                             
                         table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                        # 🔥 여기서도 출력 순서를 전월 -> 당월 -> 전월대비 로 변경!
                         display_cols = ['에이전트', '국적', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                         col_config = {
                             f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
@@ -433,7 +404,6 @@ else:
                                 return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                                 
                             table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                            # 🔥 마지막으로 여기도 출력 순서를 전월 -> 당월 -> 전월대비 로 변경!
                             display_cols = ['국적', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                             col_config = {
                                 f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
