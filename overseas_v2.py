@@ -212,7 +212,10 @@ else:
             # 🔥 권역 클릭 효과(Accordion) 구현 부분
             # ==========================================
             if view_mode == "권역별":
-                st.markdown("<br>#### 🔍 권역별 소속 국가 상세 (클릭하여 펼치기)", unsafe_allow_html=True)
+                # 🔥 여기서 줄바꿈 오류 수정 적용 완료
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader("🔍 권역별 소속 국가 상세 (클릭하여 펼치기)")
+                
                 regions = [r for r in table_df[group_col].tolist() if r != '[ 총 합계 ]']
                 
                 for reg in regions:
@@ -229,7 +232,6 @@ else:
                         reg_table['증감액'] = reg_table['당월매출'] - reg_table['전월매출']
                         reg_table = reg_table.sort_values('당월매출', ascending=False)
                         
-                        # 🔥 하위 국가 목록에도 [ 총 합계 ] 행 추가
                         total_row_reg = pd.DataFrame([{
                             '국적': '[ 총 합계 ]', 
                             '당월매출': reg_table['당월매출'].sum(),
