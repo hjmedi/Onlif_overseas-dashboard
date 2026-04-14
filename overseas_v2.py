@@ -210,10 +210,11 @@ else:
                         return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                         
                     table_df['전월대비'] = table_df.apply(format_diff, axis=1)
-                    display_cols = [group_col, f'{sel_month}', f'{prev_month}(전월)', '전월대비']
+                    # 🔥 여기서 출력 순서를 전월 -> 당월 -> 전월대비 로 변경!
+                    display_cols = [group_col, f'{prev_month}(전월)', f'{sel_month}', '전월대비']
                     col_config = {
-                        f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                         f'{prev_month}(전월)': st.column_config.TextColumn(alignment="right"),
+                        f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                         '전월대비': st.column_config.TextColumn(alignment="right")
                     }
                 else:
@@ -369,10 +370,11 @@ else:
                             return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                             
                         table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                        display_cols = ['에이전트', '국적', f'{sel_month}', f'{p_month}(전월)', '전월대비']
+                        # 🔥 여기서도 출력 순서를 전월 -> 당월 -> 전월대비 로 변경!
+                        display_cols = ['에이전트', '국적', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                         col_config = {
-                            f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                             f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
+                            f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                             '전월대비': st.column_config.TextColumn(alignment="right")
                         }
                     else:
@@ -431,10 +433,11 @@ else:
                                 return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                                 
                             table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                            display_cols = ['국적', f'{sel_month}', f'{p_month}(전월)', '전월대비']
+                            # 🔥 마지막으로 여기도 출력 순서를 전월 -> 당월 -> 전월대비 로 변경!
+                            display_cols = ['국적', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                             col_config = {
-                                f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                                 f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
+                                f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                                 '전월대비': st.column_config.TextColumn(alignment="right")
                             }
                         else:
