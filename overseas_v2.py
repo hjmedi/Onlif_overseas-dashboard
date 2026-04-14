@@ -88,6 +88,19 @@ all_dates_df = pd.concat([
 ]).drop_duplicates().sort_values('월순서')
 CHRONOLOGICAL_MONTHS = all_dates_df['매출월'].dropna().tolist()
 
+# 🔥 [수정] 대시보드 전체의 일관된 차트 색상을 위한 전역 Color Map 생성
+extended_colors = px.colors.qualitative.Pastel * 10  # 색상이 부족하지 않도록 반복
+
+all_nations = sorted(pd.concat([df_main['국적'] if not df_main.empty else pd.Series(), df_comm['국적'] if not df_comm.empty else pd.Series()]).dropna().unique())
+NATION_COLOR_MAP = {nation: extended_colors[i] for i, nation in enumerate(all_nations)}
+
+all_regions = sorted(df_main['권역'].dropna().unique()) if not df_main.empty else []
+REGION_COLOR_MAP = {region: extended_colors[i] for i, region in enumerate(all_regions)}
+
+all_agents = sorted(df_comm['에이전트'].dropna().unique()) if not df_comm.empty else []
+AGENT_COLOR_MAP = {agent: extended_colors[i] for i, agent in enumerate(all_agents)}
+
+
 st.sidebar.title("🏨 온리프 관리 시스템")
 menu = st.sidebar.radio("메뉴 이동", ["🌐 온리프 해외매출 전체", "💸 수수료 매출(에이전트별)"])
 month_list = sorted(CHRONOLOGICAL_MONTHS, reverse=True)
@@ -104,6 +117,7 @@ else:
         st.title(f"🌐 {sel_month} 온리프 해외매출 전체")
         view_mode = st.sidebar.radio("🔎 분석 기준", ["국가별", "권역별"])
         group_col = '국적' if view_mode == "국가별" else '권역'
+        current_color_map = NATION_COLOR_MAP if view_mode == "국가별" else REGION_COLOR_MAP
 
         if '매출월' in df_main.columns:
             m_df = df_main[df_main['매출월'] == sel_month]
@@ -145,7 +159,8 @@ else:
             with c1:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
                 n_df = n_df[n_df['매출액_숫자'] > 0]
-                st.plotly_chart(px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textinfo='percent+label'), use_container_width=True)
+                # 🔥 파이 차트 색상 맵 적용
+                st.plotly_chart(px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color=group_col, color_discrete_map=current_color_map).update_traces(textinfo='percent+label'), use_container_width=True)
             
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
@@ -205,7 +220,8 @@ else:
             fig = go.Figure()
             for item in trend_df[group_col].unique():
                 d = trend_df[trend_df[group_col] == item]
-                fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto'))
+                # 🔥 성장 추이 차트 색상 맵 적용
+                fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto', marker_color=current_color_map.get(item, '#cccccc')))
             
             tot_series = df_main.groupby('매출월')['매출액_숫자'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
             fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot_series.values], textposition="top center"))
@@ -285,7 +301,9 @@ else:
             fig_ctrend = go.Figure()
             for g_item in trend_data[g_col].unique():
                 a_data = trend_data[trend_data[g_col] == g_item]
-                fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto'))
+                # 🔥 성장 추이 차트 색상 맵 적용 (에이전트 조회인지 국가 조회인지 판별)
+                c_color = AGENT_COLOR_MAP.get(g_item, '#ccc') if sel_agent == "전체" else NATION_COLOR_MAP.get(g_item, '#ccc')
+                fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto', marker_color=c_color))
             
             total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
             fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
@@ -293,21 +311,17 @@ else:
 
             st.divider()
             
-            # ==========================================
-            # 📑 상세 정산 내역 표 
-            # ==========================================
             if sel_agent == "전체":
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
                 if not curr_comm.empty:
-                    # 상단 바 차트는 기존대로 에이전트+국적별로 유지
                     comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
                     comp = comp[comp['매출액'] > 0]
-                    st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
+                    # 🔥 구성비 가로 막대 차트 색상 맵 적용
+                    st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_map=NATION_COLOR_MAP).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
                     
                     st.subheader("📑 상세 정산 내역")
                     st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                     
-                    # 🔥 국적 열을 빼고 에이전트 단위로만 그룹핑
                     curr_group = curr_comm.groupby(['에이전트'])['매출액'].sum().reset_index().rename(columns={'매출액': '당월매출'})
                     
                     if p_comm_total > 0:
@@ -318,7 +332,6 @@ else:
                         table_comm['전월매출'] = 0
 
                     table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
-                    # 🔥 에이전트별 당월매출 높은 순 정렬
                     table_comm = table_comm.sort_values('당월매출', ascending=False)
                     
                     total_row_comm = pd.DataFrame([{
@@ -344,7 +357,6 @@ else:
                             return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                             
                         table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                        # 🔥 출력 컬럼에서도 '국적' 제외
                         display_cols = ['에이전트', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                         col_config = {
                             f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
@@ -352,7 +364,6 @@ else:
                             '전월대비': st.column_config.TextColumn(alignment="right")
                         }
                     else:
-                        # 🔥 출력 컬럼에서도 '국적' 제외
                         display_cols = ['에이전트', f'{sel_month}']
                         col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
                         
@@ -365,7 +376,8 @@ else:
                     with col1:
                         comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
                         comp = comp[comp['매출액'] > 0]
-                        fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        # 🔥 파이 차트 색상 맵 적용
+                        fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color='국적', color_discrete_map=NATION_COLOR_MAP)
                         fig_comp.update_traces(textinfo='percent+label')
                         st.plotly_chart(fig_comp, use_container_width=True)
                         
