@@ -141,23 +141,124 @@ else:
                 else: st.info("비교 데이터 없음")
             st.divider()
 
+            # ==========================================
+            # 🌊 전월 대비 워터폴 차트 추가
+            # ==========================================
+            if prev_total > 0:
+                st.subheader(f"🌊 전월 대비 {view_mode} 매출 증감 워터폴")
+                
+                curr_series = m_df.groupby(group_col)['매출액_숫자'].sum()
+                prev_series = prev_m_df.groupby(group_col)['매출액_숫자'].sum()
+                
+                diff_series = curr_series.subtract(prev_series, fill_value=0).sort_values(ascending=False)
+                
+                wf_x = [f"{prev_month}<br>(전월)"]
+                wf_y = [prev_total]
+                wf_measure = ["absolute"]
+                
+                for item, diff in diff_series.items():
+                    if diff != 0:
+                        wf_x.append(str(item))
+                        wf_y.append(diff)
+                        wf_measure.append("relative")
+                        
+                wf_x.append(f"{sel_month}<br>(당월)")
+                wf_y.append(total_rev)
+                wf_measure.append("total")
+                
+                fig_wf = go.Figure(go.Waterfall(
+                    name="MoM 증감",
+                    orientation="v",
+                    measure=wf_measure,
+                    x=wf_x,
+                    y=wf_y,
+                    textposition="outside",
+                    text=[f"{v:,.0f}" if v != 0 else "" for v in wf_y],
+                    decreasing={"marker": {"color": "#FF6B6B"}},
+                    increasing={"marker": {"color": "#4ECDC4"}},
+                    totals={"marker": {"color": "#45B7D1"}}
+                ))
+                
+                fig_wf.update_layout(
+                    waterfallgap=0.3,
+                    showlegend=False,
+                    height=450,
+                    margin=dict(t=30, b=30)
+                )
+                
+                st.plotly_chart(fig_wf, use_container_width=True)
+                st.divider()
+            # ==========================================
+
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
                 n_df = n_df[n_df['매출액_숫자'] > 0]
                 st.plotly_chart(px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textinfo='percent+label'), use_container_width=True)
+            
+            # ==========================================
+            # 📑 상세 실적 표 (전월 비교 업그레이드 반영)
+            # ==========================================
             with c2:
                 st.subheader(f"📑 {view_mode} 상세 실적")
                 st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                 
-                table_df = n_df.sort_values('매출액_숫자', ascending=False)
-                total_sum = table_df['매출액_숫자'].sum()
-                total_row = pd.DataFrame([{group_col: '[ 총 합계 ]', '매출액_숫자': total_sum}])
+                curr_group = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index().rename(columns={'매출액_숫자': '당월매출'})
+                
+                if prev_total > 0:
+                    prev_group = prev_m_df.groupby(group_col)['매출액_숫자'].sum().reset_index().rename(columns={'매출액_숫자': '전월매출'})
+                    table_df = pd.merge(curr_group, prev_group, on=group_col, how='outer').fillna(0)
+                else:
+                    table_df = curr_group.copy()
+                    table_df['전월매출'] = 0
+
+                table_df['증감액'] = table_df['당월매출'] - table_df['전월매출']
+                table_df = table_df.sort_values('당월매출', ascending=False)
+                
+                total_row = pd.DataFrame([{
+                    group_col: '[ 총 합계 ]', 
+                    '당월매출': table_df['당월매출'].sum(), 
+                    '전월매출': table_df['전월매출'].sum(), 
+                    '증감액': table_df['증감액'].sum()
+                }])
                 table_df = pd.concat([table_df, total_row], ignore_index=True)
                 
-                table_df['매출액(원)'] = table_df['매출액_숫자'].apply(lambda x: f"{int(x):,}")
-                st.dataframe(table_df[[group_col, '매출액(원)']], use_container_width=True, hide_index=True, column_config={"매출액(원)": st.column_config.TextColumn(alignment="right")})
-            
+                table_df[f'{sel_month}'] = table_df['당월매출'].apply(lambda x: f"{int(x):,}")
+                
+                if prev_total > 0:
+                    table_df[f'{prev_month}(전월)'] = table_df['전월매출'].apply(lambda x: f"{int(x):,}")
+                    
+                    def format_diff(row):
+                        c, p, d = row['당월매출'], row['전월매출'], row['증감액']
+                        if p == 0 and c > 0: return f"+{int(d):,} (순증가)"
+                        if p == 0 and c == 0: return "-"
+                        if d == 0: return "-"
+                        
+                        rate = (d / p) * 100
+                        sign = "+" if d > 0 else ""
+                        icon = "🔺 " if d > 0 else "🔻 "
+                        return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
+                        
+                    table_df['전월대비'] = table_df.apply(format_diff, axis=1)
+                    
+                    display_cols = [group_col, f'{sel_month}', f'{prev_month}(전월)', '전월대비']
+                    col_config = {
+                        f'{sel_month}': st.column_config.TextColumn(alignment="right"),
+                        f'{prev_month}(전월)': st.column_config.TextColumn(alignment="right"),
+                        '전월대비': st.column_config.TextColumn(alignment="right")
+                    }
+                else:
+                    display_cols = [group_col, f'{sel_month}']
+                    col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
+
+                st.dataframe(
+                    table_df[display_cols], 
+                    use_container_width=True, 
+                    hide_index=True, 
+                    column_config=col_config
+                )
+            # ==========================================
+
             if view_mode == "권역별":
                 etc = m_df[m_df['권역'] == '기타']['국적'].dropna().unique()
                 if len(etc) > 0:
@@ -171,7 +272,6 @@ else:
                 d = trend_df[trend_df[group_col] == item]
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto'))
             
-            # 🔥 [수정] 메인 페이지 꺾은선 차트도 빈 달은 0으로 채우기 (fillna(0))
             tot_series = df_main.groupby('매출월')['매출액_숫자'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
             fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot_series.values], textposition="top center"))
             
@@ -253,7 +353,6 @@ else:
                 a_data = trend_data[trend_data[g_col] == g_item]
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto'))
             
-            # 🔥 [수정] 수수료 페이지 꺾은선 차트도 빈 달은 0으로 채우기 (fillna(0))
             total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
             fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
             
@@ -261,7 +360,6 @@ else:
 
             st.divider()
             
-            # 🔥 하단 구성비 및 표 처리
             if sel_agent == "전체":
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
                 if not curr_comm.empty:
