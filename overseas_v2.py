@@ -182,7 +182,6 @@ else:
                         return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                         
                     table_df['전월대비'] = table_df.apply(format_diff, axis=1)
-                    # 출력 순서를 전월 -> 당월 -> 전월대비로 유지
                     display_cols = [group_col, f'{prev_month}(전월)', f'{sel_month}', '전월대비']
                     col_config = {
                         f'{prev_month}(전월)': st.column_config.TextColumn(alignment="right"),
@@ -295,11 +294,12 @@ else:
             st.divider()
             
             # ==========================================
-            # 📑 상세 정산 내역 표 (메뉴 2: 전월 비교 유지)
+            # 📑 상세 정산 내역 표 
             # ==========================================
             if sel_agent == "전체":
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
                 if not curr_comm.empty:
+                    # 상단 바 차트는 기존대로 에이전트+국적별로 유지
                     comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
                     comp = comp[comp['매출액'] > 0]
                     st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_sequence=px.colors.qualitative.Pastel).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
@@ -307,20 +307,22 @@ else:
                     st.subheader("📑 상세 정산 내역")
                     st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
                     
-                    curr_group = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().rename(columns={'매출액': '당월매출'})
+                    # 🔥 국적 열을 빼고 에이전트 단위로만 그룹핑
+                    curr_group = curr_comm.groupby(['에이전트'])['매출액'].sum().reset_index().rename(columns={'매출액': '당월매출'})
                     
                     if p_comm_total > 0:
-                        prev_group = p_comm_df.groupby(['에이전트', '국적'])['매출액'].sum().reset_index().rename(columns={'매출액': '전월매출'})
-                        table_comm = pd.merge(curr_group, prev_group, on=['에이전트', '국적'], how='outer').fillna(0)
+                        prev_group = p_comm_df.groupby(['에이전트'])['매출액'].sum().reset_index().rename(columns={'매출액': '전월매출'})
+                        table_comm = pd.merge(curr_group, prev_group, on=['에이전트'], how='outer').fillna(0)
                     else:
                         table_comm = curr_group.copy()
                         table_comm['전월매출'] = 0
 
                     table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
-                    table_comm = table_comm.sort_values(['에이전트', '당월매출'], ascending=[True, False])
+                    # 🔥 에이전트별 당월매출 높은 순 정렬
+                    table_comm = table_comm.sort_values('당월매출', ascending=False)
                     
                     total_row_comm = pd.DataFrame([{
-                        '에이전트': '[ 총 합계 ]', '국적': '-', 
+                        '에이전트': '[ 총 합계 ]', 
                         '당월매출': table_comm['당월매출'].sum(),
                         '전월매출': table_comm['전월매출'].sum(),
                         '증감액': table_comm['증감액'].sum()
@@ -342,14 +344,16 @@ else:
                             return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                             
                         table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                        display_cols = ['에이전트', '국적', f'{p_month}(전월)', f'{sel_month}', '전월대비']
+                        # 🔥 출력 컬럼에서도 '국적' 제외
+                        display_cols = ['에이전트', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                         col_config = {
                             f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
                             f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                             '전월대비': st.column_config.TextColumn(alignment="right")
                         }
                     else:
-                        display_cols = ['에이전트', '국적', f'{sel_month}']
+                        # 🔥 출력 컬럼에서도 '국적' 제외
+                        display_cols = ['에이전트', f'{sel_month}']
                         col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
                         
                     st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
