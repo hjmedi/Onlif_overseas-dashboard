@@ -131,8 +131,42 @@ else:
                 prev_total = prev_m_df['매출액_숫자'].sum()
                 if prev_total > 0: growth_rate = (total_rev - prev_total) / prev_total * 100
 
-            if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
-            else: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+            # ==========================================
+            # 🔥 재무 회계 기준 수익 구조 (SMC 반영) 계산
+            # ==========================================
+            # 1. 당월 계산
+            m_comm_df = df_comm[df_comm['매출월'] == sel_month] if not df_comm.empty else pd.DataFrame()
+            curr_comm_total = m_comm_df['매출액'].sum() if not m_comm_df.empty else 0
+            
+            net_rev = total_rev - curr_comm_total
+            smc_rev = total_rev * 0.20 # 🔥 전체 해외매출의 20%로 수정
+            
+            # 2. 전월 계산 (MoM 비교용)
+            prev_comm_total = 0
+            if prev_month:
+                prev_comm_df = df_comm[df_comm['매출월'] == prev_month] if not df_comm.empty else pd.DataFrame()
+                prev_comm_total = prev_comm_df['매출액'].sum() if not prev_comm_df.empty else 0
+                
+            prev_net_rev = prev_total - prev_comm_total
+            prev_smc_rev = prev_total * 0.20 # 🔥 전체 해외매출의 20%로 수정
+
+            # 3. 증감률 계산
+            def get_growth(curr, prev):
+                return (curr - prev) / prev * 100 if prev > 0 else 0
+                
+            net_growth = get_growth(net_rev, prev_net_rev)
+            comm_growth = get_growth(curr_comm_total, prev_comm_total)
+            smc_growth = get_growth(smc_rev, prev_smc_rev)
+
+            # 4. 화면 출력 (4단 지표)
+            st.markdown("### 🏢 온리프 & 파트너스 수익 구조 요약")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("① 전체 해외매출", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%" if prev_total > 0 else None)
+            col2.metric("② 수수료 (해외사업-기타)", f"{curr_comm_total:,.0f}원", f"{comm_growth:.1f}%" if prev_comm_total > 0 else None)
+            col3.metric("③ 온리프 해외사업본부 (①-②)", f"{net_rev:,.0f}원", f"{net_growth:.1f}%" if prev_net_rev > 0 else None)
+            col4.metric("④ SMC-해외사업 (①의 20%)", f"{smc_rev:,.0f}원", f"{smc_growth:.1f}%" if prev_smc_rev > 0 else None) # 🔥 라벨 수정
+            st.divider()
+            # ==========================================
 
             with st.container():
                 st.markdown("### 💡 AI 자동 분석 리포트")
@@ -208,11 +242,7 @@ else:
 
                 st.dataframe(table_df[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
 
-            # ==========================================
-            # 🔥 권역 클릭 효과(Accordion) 구현 부분
-            # ==========================================
             if view_mode == "권역별":
-                # 🔥 여기서 줄바꿈 오류 수정 적용 완료
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("🔍 권역별 소속 국가 상세 (클릭하여 펼치기)")
                 
