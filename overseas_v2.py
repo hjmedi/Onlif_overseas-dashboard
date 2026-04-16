@@ -43,6 +43,19 @@ def to_numeric(val):
     try: return float(s)
     except: return 0
 
+# 🔥 Y축 단위 '백' 자동 생성 함수
+def get_dynamic_ticks(max_val):
+    if pd.isna(max_val) or max_val == 0: return [0], ["0"]
+    if max_val >= 100000000: step = 50000000      # 1억 이상이면 5천만 단위
+    elif max_val >= 50000000: step = 20000000    # 5천만 이상이면 2천만 단위
+    elif max_val >= 20000000: step = 10000000    # 2천만 이상이면 1천만 단위
+    elif max_val >= 10000000: step = 5000000     # 1천만 이상이면 5백만 단위
+    else: step = 2000000                         # 그 이하는 2백만 단위
+    
+    vals = list(range(0, int(max_val) + step*2, step))
+    txts = [f"{v/1000000:g}백" if v != 0 else "0" for v in vals]
+    return vals, txts
+
 @st.cache_data(ttl=30)
 def load_all_data():
     res_m = requests.get(URL_MAIN)
@@ -341,9 +354,18 @@ else:
                 d = trend_df[trend_df[group_col] == item]
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto', marker_color=current_color_map.get(item, '#cccccc')))
             
+            # 🔥 Y축 M -> 백 단위 변경 및 스케일 자동 적용
             tot_series = df_main.groupby('매출월')['매출액_숫자'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
-            fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in tot_series.values], textposition="top center"))
-            st.plotly_chart(fig.update_layout(barmode='stack', hovermode="x unified", xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
+            fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}백" for v in tot_series.values], textposition="top center"))
+            
+            t_vals, t_txts = get_dynamic_ticks(tot_series.max())
+            fig.update_layout(
+                barmode='stack', hovermode="x unified", 
+                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, 
+                yaxis=dict(tickmode='array', tickvals=t_vals, ticktext=t_txts),
+                bargap=0.45
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
     # ==========================================================
     # --- 메뉴 2: 수수료 매출 (에이전트별) ---
@@ -559,7 +581,7 @@ else:
                             
                         st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
 
-            # 🔥 월별 수수료 매출 추이 (상세 정산 내역 밑으로 이동 완료)
+            # 🔥 월별 수수료 매출 추이 (상세 정산 내역 밑으로 이동 완료) + M단위에서 백단위로 변경
             st.divider()
             chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
             st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
@@ -571,5 +593,14 @@ else:
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto', marker_color=c_color))
             
             total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
-            fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
-            st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
+            fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}백" for v in total_cline_series.values], textposition="top center"))
+            
+            # 🔥 Y축 스케일 자동 적용
+            c_vals, c_txts = get_dynamic_ticks(total_cline_series.max())
+            fig_ctrend.update_layout(
+                barmode='stack', hovermode="x unified", height=500, 
+                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, 
+                yaxis=dict(tickmode='array', tickvals=c_vals, ticktext=c_txts),
+                bargap=0.45
+            )
+            st.plotly_chart(fig_ctrend, use_container_width=True)
