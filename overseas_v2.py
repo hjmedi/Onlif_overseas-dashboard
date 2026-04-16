@@ -8,7 +8,7 @@ from io import StringIO
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 해외 매출 통합 관리", layout="wide")
 
-# ✅ 데이터 주소 (크리에이트립 추가 완료)
+# ✅ 데이터 주소 및 수수료율 설정
 URL_MAIN = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=0&single=true&output=csv"
 COMMISSION_URLS = {
     "레이블": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=1298456060&single=true&output=csv",
@@ -16,6 +16,15 @@ COMMISSION_URLS = {
     "천수현 대표": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=1973655230&single=true&output=csv",
     "앤티스": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=2053307016&single=true&output=csv",
     "크리에이트립": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=2000088021&single=true&output=csv"
+}
+
+# 에이전트별 수수료율 정의 (기본값 15%, 크리에이트립 11%)
+COMMISSION_RATES = {
+    "레이블": 0.15,
+    "The SC": 0.15,
+    "천수현 대표": 0.15,
+    "앤티스": 0.15, 
+    "크리에이트립": 0.11
 }
 
 # 🌍 권역 매핑 함수
@@ -71,7 +80,15 @@ def load_all_data():
                 
             comm_list.append(df_c)
         except: continue
+        
     df_comm_total = pd.concat(comm_list, ignore_index=True) if comm_list else pd.DataFrame()
+    
+    # 🔥 에이전트별 수수료 및 실매출액 계산 로직 추가
+    if not df_comm_total.empty:
+        df_comm_total['수수료율'] = df_comm_total['에이전트'].map(COMMISSION_RATES).fillna(0.15)
+        df_comm_total['지급수수료'] = df_comm_total['매출액'] * df_comm_total['수수료율']
+        df_comm_total['실매출액'] = df_comm_total['매출액'] - df_comm_total['지급수수료']
+        
     return df_m, df_comm_total
 
 df_main_raw, df_comm_raw = load_all_data()
@@ -128,18 +145,13 @@ else:
         if '매출월' in df_main.columns:
             m_df = df_main[df_main['매출월'] == sel_month]
             
-            # 🔥 1. 기본 지표 계산 (당월)
             total_rev = m_df['매출액_숫자'].sum()
-            
             curr_comm_df = df_comm[df_comm['매출월'] == sel_month] if not df_comm.empty else pd.DataFrame()
             comm_rev = curr_comm_df['매출액'].sum() if not curr_comm_df.empty else 0
             
             non_comm_rev = total_rev - comm_rev
-            
-            # 🎯 수정: 앤파 컨설팅수수료를 총 수납액 합계(total_rev) * 20% 로 변경
             anpa_fee = total_rev * 0.20
             
-            # 🔥 2. 전월 지표 및 증감률 계산
             idx = month_list.index(sel_month)
             prev_total, prev_month, growth_rate = 0, "", 0
             prev_comm_rev, prev_non_comm_rev, prev_anpa_fee = 0, 0, 0
@@ -154,8 +166,6 @@ else:
                 prev_comm_rev = prev_comm_df['매출액'].sum() if not prev_comm_df.empty else 0
                 
                 prev_non_comm_rev = prev_total - prev_comm_rev
-                
-                # 🎯 수정: 전월 앤파 컨설팅수수료도 총 수납액 합계(prev_total) * 20% 로 변경
                 prev_anpa_fee = prev_total * 0.20
                 
                 if prev_total > 0: growth_rate = (total_rev - prev_total) / prev_total * 100
@@ -163,7 +173,6 @@ else:
                 if prev_non_comm_rev > 0: non_comm_growth = (non_comm_rev - prev_non_comm_rev) / prev_non_comm_rev * 100
                 if prev_anpa_fee > 0: anpa_growth = (anpa_fee - prev_anpa_fee) / prev_anpa_fee * 100
 
-            # 🔥 3. UI 컬럼 배치 (4개)
             m1, m2, m3, m4 = st.columns(4)
             with m1:
                 if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
@@ -332,19 +341,40 @@ else:
         
         if not page_df.empty:
             curr_comm = page_df[page_df['매출월'] == sel_month]
+            
+            # 🔥 기본 지표 및 수수료 계산
             total_comm_rev = curr_comm['매출액'].sum()
+            c_paid_comm = curr_comm['지급수수료'].sum()
+            c_net_rev = curr_comm['실매출액'].sum()
             
             idx = month_list.index(sel_month)
-            p_comm_total, p_month, c_growth_rate = 0, "", 0
+            p_comm_total, p_paid_comm, p_net_rev, p_month = 0, 0, 0, ""
+            c_growth_rate, paid_growth_rate, net_growth_rate = 0, 0, 0
+            
             if idx < len(month_list) - 1:
                 p_month = month_list[idx + 1]
                 p_comm_df = page_df[page_df['매출월'] == p_month]
                 p_comm_total = p_comm_df['매출액'].sum()
+                p_paid_comm = p_comm_df['지급수수료'].sum()
+                p_net_rev = p_comm_df['실매출액'].sum()
+                
                 if p_comm_total > 0: c_growth_rate = (total_comm_rev - p_comm_total) / p_comm_total * 100
+                if p_paid_comm > 0: paid_growth_rate = (c_paid_comm - p_paid_comm) / p_paid_comm * 100
+                if p_net_rev > 0: net_growth_rate = (c_net_rev - p_net_rev) / p_net_rev * 100
 
+            # 🔥 UI 카드 3개 분할 표기 (총수납액, 지급수수료, 실매출액)
+            m1, m2, m3 = st.columns(3)
             metric_title = "총 수납액 합계" if sel_agent == "전체" else f"[{sel_agent}] 총 수납액"
-            if p_comm_total > 0: st.metric(metric_title, f"{total_comm_rev:,.0f}원", f"{c_growth_rate:.1f}%")
-            else: st.metric(metric_title, f"{total_comm_rev:,.0f}원")
+            
+            with m1:
+                if p_comm_total > 0: st.metric(metric_title, f"{total_comm_rev:,.0f}원", f"{c_growth_rate:.1f}%")
+                else: st.metric(metric_title, f"{total_comm_rev:,.0f}원")
+            with m2:
+                if p_paid_comm > 0: st.metric("지급수수료", f"{c_paid_comm:,.0f}원", f"{paid_growth_rate:.1f}%")
+                else: st.metric("지급수수료", f"{c_paid_comm:,.0f}원")
+            with m3:
+                if p_net_rev > 0: st.metric("실매출액(총수납액-지급수수료)", f"{c_net_rev:,.0f}원", f"{net_growth_rate:.1f}%")
+                else: st.metric("실매출액(총수납액-지급수수료)", f"{c_net_rev:,.0f}원")
 
             with st.container():
                 st.markdown(f"### 💡 AI 실적 분석 리포트")
@@ -417,8 +447,11 @@ else:
                     table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
                     table_comm = table_comm.sort_values('당월매출', ascending=False)
                     
+                    # 🔥 에이전트 컬럼명 변경 및 수수료율 표기
+                    table_comm['에이전트(수수료율)'] = table_comm['에이전트'].apply(lambda x: f"{x}({int(COMMISSION_RATES.get(x, 0.15)*100)}%)")
+                    
                     total_row_comm = pd.DataFrame([{
-                        '에이전트': '[ 총 합계 ]', 
+                        '에이전트(수수료율)': '[ 총 합계 ]', 
                         '당월매출': table_comm['당월매출'].sum(),
                         '전월매출': table_comm['전월매출'].sum(),
                         '증감액': table_comm['증감액'].sum()
@@ -440,14 +473,14 @@ else:
                             return f"{sign}{int(d):,} ({icon}{abs(rate):.1f}%)"
                             
                         table_comm['전월대비'] = table_comm.apply(format_diff, axis=1)
-                        display_cols = ['에이전트', f'{p_month}(전월)', f'{sel_month}', '전월대비']
+                        display_cols = ['에이전트(수수료율)', f'{p_month}(전월)', f'{sel_month}', '전월대비']
                         col_config = {
                             f'{p_month}(전월)': st.column_config.TextColumn(alignment="right"),
                             f'{sel_month}': st.column_config.TextColumn(alignment="right"),
                             '전월대비': st.column_config.TextColumn(alignment="right")
                         }
                     else:
-                        display_cols = ['에이전트', f'{sel_month}']
+                        display_cols = ['에이전트(수수료율)', f'{sel_month}']
                         col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
                         
                     st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
