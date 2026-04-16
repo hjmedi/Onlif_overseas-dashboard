@@ -380,7 +380,6 @@ else:
                 st.markdown(f"### 💡 AI 실적 분석 리포트")
                 if p_comm_total > 0:
                     c_diff_amt = total_comm_rev - p_comm_total
-                    # 🎯 수정: "수납액" -> "매출액"으로 변경 완료
                     if c_growth_rate > 0: st.success(f"📈 **전월 대비 매출액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
                     elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 매출액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
                     
@@ -410,6 +409,75 @@ else:
                             st.error(f"🔻 **최대 감소 {label_name}:** **{bottom_g}** (전월 대비 {bottom_diff_amt:,.0f}원{b_rate_str})")
                 else: st.info("비교 데이터가 부족하여 분석을 생략합니다.")
             st.divider()
+
+            # ==========================================================
+            # 🔥 매출 흐름도 (Sankey Diagram) 추가 부분
+            # ==========================================================
+            if not curr_comm.empty:
+                st.subheader("🌊 이번 달 매출 흐름도 (Sankey Diagram)")
+                st.markdown("<p style='color: gray; font-size: 0.9rem;'>국적별 수익이 어떤 에이전트를 거쳐 온리프와 에이전트 수수료로 분배되는지 보여줍니다.</p>", unsafe_allow_html=True)
+                
+                nations = curr_comm['국적'].dropna().unique().tolist()
+                agents_in_curr = curr_comm['에이전트'].dropna().unique().tolist()
+                endpoints = ['실매출액(온리프)', '지급수수료(에이전트)']
+                
+                all_nodes = nations + agents_in_curr + endpoints
+                node_indices = {name: i for i, name in enumerate(all_nodes)}
+                
+                # 노드별 예쁜 색상 부여
+                node_colors = []
+                for node in all_nodes:
+                    if node in nations: node_colors.append("#A8E6CF") # 연한 민트 (국적)
+                    elif node in agents_in_curr: node_colors.append("#FFD3B6") # 연한 오렌지 (에이전트)
+                    elif node == '실매출액(온리프)': node_colors.append("#FFAAA5") # 연한 레드/핑크 (실매출액)
+                    else: node_colors.append("#FF8C94") # 진한 레드/핑크 (지급수수료)
+
+                sources = []
+                targets = []
+                values = []
+                
+                # 1. 링크 생성: 국적 -> 에이전트
+                flow1 = curr_comm.groupby(['국적', '에이전트'])['매출액'].sum().reset_index()
+                for _, row in flow1.iterrows():
+                    if row['매출액'] > 0:
+                        sources.append(node_indices[row['국적']])
+                        targets.append(node_indices[row['에이전트']])
+                        values.append(row['매출액'])
+                        
+                # 2. 링크 생성: 에이전트 -> 실매출액 / 지급수수료
+                flow2 = curr_comm.groupby('에이전트')[['실매출액', '지급수수료']].sum().reset_index()
+                for _, row in flow2.iterrows():
+                    if row['실매출액'] > 0:
+                        sources.append(node_indices[row['에이전트']])
+                        targets.append(node_indices['실매출액(온리프)'])
+                        values.append(row['실매출액'])
+                    if row['지급수수료'] > 0:
+                        sources.append(node_indices[row['에이전트']])
+                        targets.append(node_indices['지급수수료(에이전트)'])
+                        values.append(row['지급수수료'])
+                        
+                # 생키 차트 그리기
+                if sum(values) > 0: # 데이터가 있을 때만 렌더링
+                    fig_sankey = go.Figure(data=[go.Sankey(
+                        valueformat = ",.0f",
+                        valuesuffix = "원",
+                        node = dict(
+                          pad = 20,
+                          thickness = 25,
+                          line = dict(color = "white", width = 1),
+                          label = all_nodes,
+                          color = node_colors
+                        ),
+                        link = dict(
+                          source = sources,
+                          target = targets,
+                          value = values,
+                          color = "rgba(220, 220, 220, 0.5)" # 흐름선 반투명 회색
+                        )
+                    )])
+                    fig_sankey.update_layout(height=450, margin=dict(l=20, r=20, t=30, b=20), font_size=13)
+                    st.plotly_chart(fig_sankey, use_container_width=True)
+                st.divider()
 
             chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
             st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
