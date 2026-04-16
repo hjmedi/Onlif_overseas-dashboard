@@ -233,11 +233,11 @@ else:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
                 n_df = n_df[n_df['매출액_숫자'] > 0]
                 
-                # 🔥 차트 중앙 빈 공간에 매출 총합 텍스트 표시
+                # 🔥 차트 중앙 빈 공간 다시 0.4로 변경 (폰트 크기 최적화)
                 pie_total = n_df['매출액_숫자'].sum()
-                fig_pie = px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.55, color=group_col, color_discrete_map=current_color_map)
+                fig_pie = px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color=group_col, color_discrete_map=current_color_map)
                 fig_pie.update_traces(textinfo='percent+label')
-                fig_pie.update_layout(annotations=[dict(text=f"총 매출액<br><b>{pie_total:,.0f}원</b>", x=0.5, y=0.5, font_size=16, showarrow=False)])
+                fig_pie.update_layout(annotations=[dict(text=f"총 매출액<br><b>{pie_total:,.0f}원</b>", x=0.5, y=0.5, font_size=13, showarrow=False)])
                 st.plotly_chart(fig_pie, use_container_width=True)
             
             with c2:
@@ -517,11 +517,11 @@ else:
                         comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
                         comp = comp[comp['매출액'] > 0]
                         
-                        # 🔥 차트 중앙 빈 공간에 수납액 총합 텍스트 표시
+                        # 🔥 차트 중앙 빈 공간 다시 0.4로 변경 (폰트 크기 최적화)
                         comp_total = comp['매출액'].sum()
-                        fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.55, color='국적', color_discrete_map=NATION_COLOR_MAP)
+                        fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color='국적', color_discrete_map=NATION_COLOR_MAP)
                         fig_comp.update_traces(textinfo='percent+label')
-                        fig_comp.update_layout(annotations=[dict(text=f"총 수납액<br><b>{comp_total:,.0f}원</b>", x=0.5, y=0.5, font_size=16, showarrow=False)])
+                        fig_comp.update_layout(annotations=[dict(text=f"총 수납액<br><b>{comp_total:,.0f}원</b>", x=0.5, y=0.5, font_size=13, showarrow=False)])
                         st.plotly_chart(fig_comp, use_container_width=True)
                         
                     with col2:
