@@ -135,7 +135,8 @@ all_agents = sorted(df_comm['에이전트'].dropna().unique()) if not df_comm.em
 AGENT_COLOR_MAP = {agent: extended_colors[i] for i, agent in enumerate(all_agents)}
 
 
-st.sidebar.title("🏨 온리프 관리 시스템")
+# 🔥 사이드바 타이틀 수정
+st.sidebar.title("🏨 온리프 해외 매출")
 menu = st.sidebar.radio("메뉴 이동", ["🌐 온리프 해외매출 전체", "💸 수수료 매출(에이전트별)"])
 month_list = sorted(CHRONOLOGICAL_MONTHS, reverse=True)
 
