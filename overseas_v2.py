@@ -111,14 +111,14 @@ all_dates_df = pd.concat([
 ]).drop_duplicates().sort_values('월순서')
 CHRONOLOGICAL_MONTHS = all_dates_df['매출월'].dropna().tolist()
 
-# 🔥 대시보드 전체의 일관된 차트 색상을 위한 전역 Color Map 생성 (색상 중복 방지를 위해 확장)
+# 🔥 대시보드 전체의 일관된 차트 색상을 위한 전역 Color Map 생성 
+# (눈이 편안한 파스텔 및 부드러운 톤으로 교체)
 extended_colors = (
-    px.colors.qualitative.Alphabet + 
-    px.colors.qualitative.Set3 + 
     px.colors.qualitative.Pastel + 
-    px.colors.qualitative.Light24 + 
-    px.colors.qualitative.Dark24
-) * 3 
+    px.colors.qualitative.Set3 + 
+    px.colors.qualitative.Set2 + 
+    px.colors.qualitative.Safe
+) * 10 
 
 all_nations = sorted(pd.concat([df_main['국적'] if not df_main.empty else pd.Series(), df_comm['국적'] if not df_comm.empty else pd.Series()]).dropna().unique())
 NATION_COLOR_MAP = {nation: extended_colors[i] for i, nation in enumerate(all_nations)}
