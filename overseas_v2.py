@@ -64,6 +64,11 @@ def load_all_data():
                 '날짜': temp.iloc[:, 4],
                 '매출액': temp.iloc[:, 8].apply(to_numeric)
             })
+            
+            # 🔥 [수정된 부분] 크리에이트립인 경우 국적이 '중국'인 데이터만 남기도록 필터링
+            if name == "크리에이트립":
+                df_c = df_c[df_c['국적'].astype(str).str.contains('중국', na=False)]
+                
             comm_list.append(df_c)
         except: continue
     df_comm_total = pd.concat(comm_list, ignore_index=True) if comm_list else pd.DataFrame()
