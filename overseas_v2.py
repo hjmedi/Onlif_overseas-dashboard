@@ -233,7 +233,6 @@ else:
                 n_df = m_df.groupby(group_col)['매출액_숫자'].sum().reset_index()
                 n_df = n_df[n_df['매출액_숫자'] > 0]
                 
-                # 🔥 차트 중앙 빈 공간 다시 0.4로 변경 (폰트 크기 최적화)
                 pie_total = n_df['매출액_숫자'].sum()
                 fig_pie = px.pie(n_df, values='매출액_숫자', names=group_col, hole=0.4, color=group_col, color_discrete_map=current_color_map)
                 fig_pie.update_traces(textinfo='percent+label')
@@ -434,21 +433,6 @@ else:
                 else: st.info("비교 데이터가 부족하여 분석을 생략합니다.")
             st.divider()
 
-            chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
-            st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
-            trend_data = page_df.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
-            fig_ctrend = go.Figure()
-            for g_item in trend_data[g_col].unique():
-                a_data = trend_data[trend_data[g_col] == g_item]
-                c_color = AGENT_COLOR_MAP.get(g_item, '#ccc') if sel_agent == "전체" else NATION_COLOR_MAP.get(g_item, '#ccc')
-                fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto', marker_color=c_color))
-            
-            total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
-            fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
-            st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
-
-            st.divider()
-            
             if sel_agent == "전체":
                 st.subheader(f"🗺️ {sel_month} 에이전트별 국가 구성비")
                 if not curr_comm.empty:
@@ -517,7 +501,6 @@ else:
                         comp = curr_comm.groupby(['국적'])['매출액'].sum().reset_index()
                         comp = comp[comp['매출액'] > 0]
                         
-                        # 🔥 차트 중앙 빈 공간 다시 0.4로 변경 (폰트 크기 최적화)
                         comp_total = comp['매출액'].sum()
                         fig_comp = px.pie(comp, values='매출액', names='국적', hole=0.4, color='국적', color_discrete_map=NATION_COLOR_MAP)
                         fig_comp.update_traces(textinfo='percent+label')
@@ -574,3 +557,18 @@ else:
                             col_config = {f'{sel_month}': st.column_config.TextColumn(alignment="right")}
                             
                         st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
+
+            # 🔥 월별 수수료 매출 추이 (상세 정산 내역 밑으로 이동 완료)
+            st.divider()
+            chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
+            st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
+            trend_data = page_df.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
+            fig_ctrend = go.Figure()
+            for g_item in trend_data[g_col].unique():
+                a_data = trend_data[trend_data[g_col] == g_item]
+                c_color = AGENT_COLOR_MAP.get(g_item, '#ccc') if sel_agent == "전체" else NATION_COLOR_MAP.get(g_item, '#ccc')
+                fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto', marker_color=c_color))
+            
+            total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
+            fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}M" for v in total_cline_series.values], textposition="top center"))
+            st.plotly_chart(fig_ctrend.update_layout(barmode='stack', hovermode="x unified", height=500, xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, bargap=0.45), use_container_width=True)
