@@ -65,7 +65,7 @@ def load_all_data():
                 '매출액': temp.iloc[:, 8].apply(to_numeric)
             })
             
-            # 🔥 [수정된 부분] 크리에이트립인 경우 국적이 '중국'인 데이터만 남기도록 필터링
+            # 🔥 크리에이트립인 경우 국적이 '중국'인 데이터만 남기도록 필터링
             if name == "크리에이트립":
                 df_c = df_c[df_c['국적'].astype(str).str.contains('중국', na=False)]
                 
@@ -127,18 +127,54 @@ else:
 
         if '매출월' in df_main.columns:
             m_df = df_main[df_main['매출월'] == sel_month]
+            
+            # 🔥 1. 기본 지표 계산 (당월)
             total_rev = m_df['매출액_숫자'].sum()
+            
+            curr_comm_df = df_comm[df_comm['매출월'] == sel_month] if not df_comm.empty else pd.DataFrame()
+            comm_rev = curr_comm_df['매출액'].sum() if not curr_comm_df.empty else 0
+            
+            non_comm_rev = total_rev - comm_rev
+            anpa_fee = comm_rev * 0.20
+            
+            # 🔥 2. 전월 지표 및 증감률 계산
             idx = month_list.index(sel_month)
             prev_total, prev_month, growth_rate = 0, "", 0
+            prev_comm_rev, prev_non_comm_rev, prev_anpa_fee = 0, 0, 0
+            comm_growth, non_comm_growth, anpa_growth = 0, 0, 0
             
             if idx < len(month_list) - 1:
                 prev_month = month_list[idx + 1]
                 prev_m_df = df_main[df_main['매출월'] == prev_month]
                 prev_total = prev_m_df['매출액_숫자'].sum()
+                
+                prev_comm_df = df_comm[df_comm['매출월'] == prev_month] if not df_comm.empty else pd.DataFrame()
+                prev_comm_rev = prev_comm_df['매출액'].sum() if not prev_comm_df.empty else 0
+                
+                prev_non_comm_rev = prev_total - prev_comm_rev
+                prev_anpa_fee = prev_comm_rev * 0.20
+                
                 if prev_total > 0: growth_rate = (total_rev - prev_total) / prev_total * 100
+                if prev_comm_rev > 0: comm_growth = (comm_rev - prev_comm_rev) / prev_comm_rev * 100
+                if prev_non_comm_rev > 0: non_comm_growth = (non_comm_rev - prev_non_comm_rev) / prev_non_comm_rev * 100
+                if prev_anpa_fee > 0: anpa_growth = (anpa_fee - prev_anpa_fee) / prev_anpa_fee * 100
 
-            if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
-            else: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+            # 🔥 3. UI 컬럼 배치 (4개)
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
+                else: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+            with m2:
+                if prev_non_comm_rev > 0: st.metric("수수료 미지급 매출", f"{non_comm_rev:,.0f}원", f"{non_comm_growth:.1f}%")
+                else: st.metric("수수료 미지급 매출", f"{non_comm_rev:,.0f}원")
+            with m3:
+                if prev_comm_rev > 0: st.metric("수수료 지급 매출", f"{comm_rev:,.0f}원", f"{comm_growth:.1f}%")
+                else: st.metric("수수료 지급 매출", f"{comm_rev:,.0f}원")
+            with m4:
+                if prev_anpa_fee > 0: st.metric("앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원", f"{anpa_growth:.1f}%")
+                else: st.metric("앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원")
+                
+            st.markdown("<br>", unsafe_allow_html=True)
 
             with st.container():
                 st.markdown("### 💡 AI 자동 분석 리포트")
