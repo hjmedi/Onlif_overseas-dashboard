@@ -380,8 +380,9 @@ else:
                 st.markdown(f"### 💡 AI 실적 분석 리포트")
                 if p_comm_total > 0:
                     c_diff_amt = total_comm_rev - p_comm_total
-                    if c_growth_rate > 0: st.success(f"📈 **전월 대비 수납액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
-                    elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 수납액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
+                    # 🎯 수정: "수납액" -> "매출액"으로 변경 완료
+                    if c_growth_rate > 0: st.success(f"📈 **전월 대비 매출액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
+                    elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 매출액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
                     
                     if total_comm_rev == page_df.groupby('매출월')['매출액'].sum().max() and total_comm_rev > 0: 
                         st.info(f"🏆 **역대 최고치 경신!**")
