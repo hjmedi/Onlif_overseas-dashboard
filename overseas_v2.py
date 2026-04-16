@@ -112,7 +112,6 @@ all_dates_df = pd.concat([
 CHRONOLOGICAL_MONTHS = all_dates_df['매출월'].dropna().tolist()
 
 # 🔥 대시보드 전체의 일관된 차트 색상을 위한 전역 Color Map 생성 
-# (눈이 편안한 파스텔 및 부드러운 톤으로 교체)
 extended_colors = (
     px.colors.qualitative.Pastel + 
     px.colors.qualitative.Set3 + 
@@ -122,6 +121,10 @@ extended_colors = (
 
 all_nations = sorted(pd.concat([df_main['국적'] if not df_main.empty else pd.Series(), df_comm['국적'] if not df_comm.empty else pd.Series()]).dropna().unique())
 NATION_COLOR_MAP = {nation: extended_colors[i] for i, nation in enumerate(all_nations)}
+
+# 🎯 중국 색상 명시적 고정 (눈이 편안한 파스텔 초록색)
+if '중국' in NATION_COLOR_MAP:
+    NATION_COLOR_MAP['중국'] = '#81C784' 
 
 all_regions = sorted(df_main['권역'].dropna().unique()) if not df_main.empty else []
 REGION_COLOR_MAP = {region: extended_colors[i] for i, region in enumerate(all_regions)}
