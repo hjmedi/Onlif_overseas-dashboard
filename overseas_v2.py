@@ -173,7 +173,9 @@ else:
                 if prev_non_comm_rev > 0: non_comm_growth = (non_comm_rev - prev_non_comm_rev) / prev_non_comm_rev * 100
                 if prev_anpa_fee > 0: anpa_growth = (anpa_fee - prev_anpa_fee) / prev_anpa_fee * 100
 
-            m1, m2, m3, m4 = st.columns(4)
+            # 🔥 UI 카드 분할 표기 (매출군 3개 | 구분선 | 수수료 1개)
+            m1, m2, m3, m_space, m4 = st.columns([1, 1, 1, 0.3, 1.2])
+            
             with m1:
                 if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
                 else: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
@@ -183,9 +185,14 @@ else:
             with m3:
                 if prev_comm_rev > 0: st.metric("수수료 지급 매출", f"{comm_rev:,.0f}원", f"{comm_growth:.1f}%")
                 else: st.metric("수수료 지급 매출", f"{comm_rev:,.0f}원")
+                
+            # 시각적 분리선 (회색 세로선) 추가
+            with m_space:
+                st.markdown("<div style='border-left: 2px solid #e0e0e0; height: 80px; margin: auto; width: 2px;'></div>", unsafe_allow_html=True)
+                
             with m4:
-                if prev_anpa_fee > 0: st.metric("앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원", f"{anpa_growth:.1f}%")
-                else: st.metric("앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원")
+                if prev_anpa_fee > 0: st.metric("💡 앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원", f"{anpa_growth:.1f}%")
+                else: st.metric("💡 앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원")
                 
             st.markdown("<br>", unsafe_allow_html=True)
 
