@@ -135,7 +135,9 @@ else:
             comm_rev = curr_comm_df['매출액'].sum() if not curr_comm_df.empty else 0
             
             non_comm_rev = total_rev - comm_rev
-            anpa_fee = comm_rev * 0.20
+            
+            # 🎯 수정: 앤파 컨설팅수수료를 총 수납액 합계(total_rev) * 20% 로 변경
+            anpa_fee = total_rev * 0.20
             
             # 🔥 2. 전월 지표 및 증감률 계산
             idx = month_list.index(sel_month)
@@ -152,7 +154,9 @@ else:
                 prev_comm_rev = prev_comm_df['매출액'].sum() if not prev_comm_df.empty else 0
                 
                 prev_non_comm_rev = prev_total - prev_comm_rev
-                prev_anpa_fee = prev_comm_rev * 0.20
+                
+                # 🎯 수정: 전월 앤파 컨설팅수수료도 총 수납액 합계(prev_total) * 20% 로 변경
+                prev_anpa_fee = prev_total * 0.20
                 
                 if prev_total > 0: growth_rate = (total_rev - prev_total) / prev_total * 100
                 if prev_comm_rev > 0: comm_growth = (comm_rev - prev_comm_rev) / prev_comm_rev * 100
