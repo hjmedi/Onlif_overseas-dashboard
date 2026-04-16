@@ -122,9 +122,11 @@ extended_colors = (
 all_nations = sorted(pd.concat([df_main['국적'] if not df_main.empty else pd.Series(), df_comm['국적'] if not df_comm.empty else pd.Series()]).dropna().unique())
 NATION_COLOR_MAP = {nation: extended_colors[i] for i, nation in enumerate(all_nations)}
 
-# 🎯 중국 색상 명시적 고정 (눈이 편안한 파스텔 초록색)
+# 🎯 중국 및 일본 색상 명시적 고정 (눈이 편안한 파스텔 톤)
 if '중국' in NATION_COLOR_MAP:
-    NATION_COLOR_MAP['중국'] = '#81C784' 
+    NATION_COLOR_MAP['중국'] = '#81C784' # 파스텔 초록색
+if '일본' in NATION_COLOR_MAP:
+    NATION_COLOR_MAP['일본'] = '#64B5F6' # 파스텔 파란색
 
 all_regions = sorted(df_main['권역'].dropna().unique()) if not df_main.empty else []
 REGION_COLOR_MAP = {region: extended_colors[i] for i, region in enumerate(all_regions)}
