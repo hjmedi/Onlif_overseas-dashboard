@@ -43,7 +43,7 @@ def to_numeric(val):
     try: return float(s)
     except: return 0
 
-# 🔥 Y축 단위 '백' 자동 생성 함수
+# 🔥 축 단위 '백' 자동 생성 함수
 def get_dynamic_ticks(max_val):
     if pd.isna(max_val) or max_val == 0: return [0], ["0"]
     if max_val >= 100000000: step = 50000000      # 1억 이상이면 5천만 단위
@@ -461,7 +461,20 @@ else:
                 if not curr_comm.empty:
                     comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
                     comp = comp[comp['매출액'] > 0]
-                    st.plotly_chart(px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_map=NATION_COLOR_MAP).update_traces(textposition='inside').update_layout(barmode='stack', height=400), use_container_width=True)
+                    
+                    # 🔥 X축 스케일 M -> 백 단위 자동 변경 적용
+                    fig_comp_bar = px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_map=NATION_COLOR_MAP)
+                    fig_comp_bar.update_traces(textposition='inside')
+                    
+                    bar_max = comp.groupby('에이전트')['매출액'].sum().max() if not comp.empty else 0
+                    b_vals, b_txts = get_dynamic_ticks(bar_max)
+                    
+                    fig_comp_bar.update_layout(
+                        barmode='stack', 
+                        height=400,
+                        xaxis=dict(tickmode='array', tickvals=b_vals, ticktext=b_txts)
+                    )
+                    st.plotly_chart(fig_comp_bar, use_container_width=True)
                     
                     st.subheader("📑 상세 정산 내역")
                     st.markdown("<p style='text-align: right; color: gray; font-size: 0.8rem;'>(단위: 원)</p>", unsafe_allow_html=True)
