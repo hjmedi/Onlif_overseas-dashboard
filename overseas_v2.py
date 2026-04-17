@@ -8,7 +8,7 @@ from io import StringIO
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 해외 매출 통합 관리", layout="wide")
 
-# ✅ 데이터 주소 및 수수료율 설정 (CSV 형식으로 변환된 주소)
+# ✅ 데이터 주소 및 수수료율 설정 (새로운 스프레드시트 CSV 형식 주소)
 URL_MAIN = "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=1185804858"
 COMMISSION_URLS = {
     "레이블": "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=291390748",
