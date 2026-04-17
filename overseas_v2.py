@@ -8,14 +8,14 @@ from io import StringIO
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 해외 매출 통합 관리", layout="wide")
 
-# ✅ 데이터 주소 및 수수료율 설정
-URL_MAIN = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=0&single=true&output=csv"
+# ✅ 데이터 주소 및 수수료율 설정 (CSV 형식으로 변환된 주소)
+URL_MAIN = "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=1185804858"
 COMMISSION_URLS = {
-    "레이블": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=1298456060&single=true&output=csv",
-    "The SC": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=344598450&single=true&output=csv",
-    "천수현 대표": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=1973655230&single=true&output=csv",
-    "앤티스": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=2053307016&single=true&output=csv",
-    "크리에이트립": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=2000088021&single=true&output=csv"
+    "레이블": "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=291390748",
+    "The SC": "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=352913906",
+    "천수현 대표": "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=712951496",
+    "앤티스": "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=947748476",
+    "크리에이트립": "https://docs.google.com/spreadsheets/d/19cK5gOYT6nnEk80SLMrODJwf1rJpip9dthYdKjotXIM/export?format=csv&gid=180707039"
 }
 
 # 에이전트별 수수료율 정의 (기본값 15%, 크리에이트립 11%)
@@ -30,10 +30,10 @@ COMMISSION_RATES = {
 # 🌍 권역 매핑 함수
 def get_region(nation):
     nation = str(nation).strip()
-    if nation in ['중국', '대만', '홍콩', '마카오', 'China', 'Taiwan', 'Hong Kong']: return '중화권'
+    if nation in: return '중화권'
     elif nation in ['일본', 'Japan']: return '일본'
     elif nation in ['태국', '베트남', '싱가포르', '필리핀', '말레이시아', '인도네시아', '미얀마', '캄보디아', '라오스']: return '동남아'
-    elif nation in ['미국', '캐나다', 'USA', 'Canada', 'United States']: return '북미'
+    elif nation in: return '북미'
     elif nation in ['영국', '프랑스', '독일', '이탈리아', '스페인', '러시아', '네덜란드']: return '유럽'
     else: return '기타'
 
@@ -45,7 +45,7 @@ def to_numeric(val):
 
 # 🔥 축 단위 '백' 자동 생성 함수
 def get_dynamic_ticks(max_val):
-    if pd.isna(max_val) or max_val == 0: return [0], ["0"]
+    if pd.isna(max_val) or max_val == 0: return , ["0"]
     if max_val >= 100000000: step = 50000000      # 1억 이상이면 5천만 단위
     elif max_val >= 50000000: step = 20000000    # 5천만 이상이면 2천만 단위
     elif max_val >= 20000000: step = 10000000    # 2천만 이상이면 1천만 단위
@@ -53,7 +53,7 @@ def get_dynamic_ticks(max_val):
     else: step = 2000000                         # 그 이하는 2백만 단위
     
     vals = list(range(0, int(max_val) + step*2, step))
-    txts = [f"{v/1000000:g}백" if v != 0 else "0" for v in vals]
+    txts = [f"{v/1000000:g}백" if v!= 0 else "0" for v in vals]
     return vals, txts
 
 @st.cache_data(ttl=30)
@@ -69,13 +69,13 @@ def load_all_data():
     df_m = df_m.drop(range(h_idx + 1)).reset_index(drop=True)
     div_col = [c for c in df_m.columns if '구분' in c or '해외' in c]
     if div_col:
-        df_m = df_m[df_m[div_col[0]].astype(str).str.contains('해외', na=False)]
-    amt_col = [c for c in df_m.columns if '수납액' in c and 'CRM' in c]
+        df_m = df_m[df_m[div_col].astype(str).str.contains('해외', na=False)]
+    amt_col =
     if not amt_col: amt_col = [c for c in df_m.columns if '수납액' in c]
-    df_m['매출액_숫자'] = df_m[amt_col[0]].apply(to_numeric) / 1.1 if amt_col else 0
+    df_m['매출액_숫자'] = df_m[amt_col].apply(to_numeric) / 1.1 if amt_col else 0
     df_m['권역'] = df_m['국적'].apply(get_region)
     
-    comm_list = []
+    comm_list =
     for name, url in COMMISSION_URLS.items():
         try:
             r = requests.get(url)
@@ -109,7 +109,7 @@ df_main_raw, df_comm_raw = load_all_data()
 def format_date(df, col):
     target_col = [c for c in df.columns if col in c]
     if target_col:
-        df['날짜형'] = pd.to_datetime(df[target_col[0]], errors='coerce')
+        df['날짜형'] = pd.to_datetime(df[target_col], errors='coerce')
         df = df.dropna(subset=['날짜형'])
         df['매출월'] = df['날짜형'].dt.strftime('%y년 %m월')
         df['월순서'] = df['날짜형'].dt.strftime('%Y-%m')
@@ -141,10 +141,10 @@ if '중국' in NATION_COLOR_MAP:
 if '일본' in NATION_COLOR_MAP:
     NATION_COLOR_MAP['일본'] = '#64B5F6' # 파스텔 파란색
 
-all_regions = sorted(df_main['권역'].dropna().unique()) if not df_main.empty else []
+all_regions = sorted(df_main['권역'].dropna().unique()) if not df_main.empty else
 REGION_COLOR_MAP = {region: extended_colors[i] for i, region in enumerate(all_regions)}
 
-all_agents = sorted(df_comm['에이전트'].dropna().unique()) if not df_comm.empty else []
+all_agents = sorted(df_comm['에이전트'].dropna().unique()) if not df_comm.empty else
 AGENT_COLOR_MAP = {agent: extended_colors[i] for i, agent in enumerate(all_agents)}
 
 
@@ -304,7 +304,7 @@ else:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("🔍 권역별 소속 국가 상세 (클릭하여 펼치기)")
                 
-                regions = [r for r in table_df[group_col].tolist() if r != '[ 총 합계 ]']
+                regions = [r for r in table_df[group_col].tolist() if r!= '[ 총 합계 ]']
                 
                 for reg in regions:
                     with st.expander(f"📂 {reg} 소속 국가 상세 실적"):
