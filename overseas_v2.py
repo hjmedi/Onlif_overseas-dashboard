@@ -159,24 +159,17 @@ else:
     # ==========================================================
     # --- 🎛️ 기간 조회 및 필터 설정 ---
     # ==========================================================
-    # 1. 기존 상세 조회 월 선택 (상단 요약 카드용)
     sel_month = st.sidebar.selectbox("📅 상세 조회 월 선택", month_list)
 
-    # 2. 신규 다중 기간 검색 슬라이더 (트렌드 차트용)
     st.sidebar.markdown("---")
     st.sidebar.subheader("📈 트렌드 차트 기간 설정")
-    
-    # 기본값 설정: 최근 6개월 (데이터가 6개월 미만이면 전체)
     default_start = CHRONOLOGICAL_MONTHS[-6] if len(CHRONOLOGICAL_MONTHS) >= 6 else CHRONOLOGICAL_MONTHS[0]
     default_end = CHRONOLOGICAL_MONTHS[-1]
-
     start_month, end_month = st.sidebar.select_slider(
         "조회할 기간(시작월 - 종료월)을 선택하세요",
         options=CHRONOLOGICAL_MONTHS,
         value=(default_start, default_end)
     )
-
-    # 선택된 기간에 해당하는 월 리스트 추출
     start_idx = CHRONOLOGICAL_MONTHS.index(start_month)
     end_idx = CHRONOLOGICAL_MONTHS.index(end_month)
     FILTERED_MONTHS = CHRONOLOGICAL_MONTHS[start_idx : end_idx + 1]
@@ -204,11 +197,9 @@ else:
             target_year_prefix = "20" + sel_month[:2] # 예: "2024"
             curr_month_order = all_dates_df[all_dates_df['매출월'] == sel_month]['월순서'].values[0]
             
-            # 당해년도 YTD
             ytd_df = df_main[(df_main['월순서'].str.startswith(target_year_prefix)) & (df_main['월순서'] <= curr_month_order)]
             ytd_total = ytd_df['매출액_숫자'].sum()
             
-            # 전년도 YTD (성장률 비교용)
             prev_year_prefix = str(int(target_year_prefix) - 1)
             prev_y_month_order = curr_month_order.replace(target_year_prefix, prev_year_prefix)
             pytd_df = df_main[(df_main['월순서'].str.startswith(prev_year_prefix)) & (df_main['월순서'] <= prev_y_month_order)]
@@ -237,23 +228,22 @@ else:
                 if prev_non_comm_rev > 0: non_comm_growth = (non_comm_rev - prev_non_comm_rev) / prev_non_comm_rev * 100
                 if prev_anpa_fee > 0: anpa_growth = (anpa_fee - prev_anpa_fee) / prev_anpa_fee * 100
 
-            # 🔥 UI 카드 분할 표기 (YTD 포함)
-            m1, m_ytd, m2, m3, m_space, m4 = st.columns([1, 1.2, 1, 1, 0.3, 1.2])
+            # 🔥 UI 카드 분할 표기 (YTD 포함 레이아웃 최적화)
+            m1, m_ytd, m2, m3, m_space, m4 = st.columns([1.2, 1.3, 1, 1, 0.2, 1.2])
             
             with m1:
-                if prev_total > 0: st.metric("당월 매출액 (VAT제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
-                else: st.metric("당월 매출액 (VAT제외)", f"{total_rev:,.0f}원")
+                if prev_total > 0: st.metric("당월 매출액", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
+                else: st.metric("당월 매출액", f"{total_rev:,.0f}원")
             with m_ytd:
                 if pytd_total > 0: st.metric(f"📅 {target_year_prefix}년 누적(YTD)", f"{ytd_total:,.0f}원", f"{ytd_growth:+.1f}% (YoY)")
                 else: st.metric(f"📅 {target_year_prefix}년 누적(YTD)", f"{ytd_total:,.0f}원")
             with m2:
-                if prev_non_comm_rev > 0: st.metric("수수료 미지급 매출", f"{non_comm_rev:,.0f}원", f"{non_comm_growth:.1f}%")
-                else: st.metric("수수료 미지급 매출", f"{non_comm_rev:,.0f}원")
+                if prev_non_comm_rev > 0: st.metric("수수료 미지급", f"{non_comm_rev:,.0f}원", f"{non_comm_growth:.1f}%")
+                else: st.metric("수수료 미지급", f"{non_comm_rev:,.0f}원")
             with m3:
-                if prev_comm_rev > 0: st.metric("수수료 지급 매출", f"{comm_rev:,.0f}원", f"{comm_growth:.1f}%")
-                else: st.metric("수수료 지급 매출", f"{comm_rev:,.0f}원")
+                if prev_comm_rev > 0: st.metric("수수료 지급", f"{comm_rev:,.0f}원", f"{comm_growth:.1f}%")
+                else: st.metric("수수료 지급", f"{comm_rev:,.0f}원")
                 
-            # 시각적 분리선 (회색 세로선) 추가
             with m_space:
                 st.markdown("<div style='border-left: 2px solid #e0e0e0; height: 80px; margin: auto; width: 2px;'></div>", unsafe_allow_html=True)
                 
@@ -392,7 +382,6 @@ else:
             st.divider()
             st.subheader(f"📈 전체 월별 성장 추이 ({view_mode} 기준)")
             
-            # 여기서 슬라이더로 선택된 FILTERED_MONTHS 만 필터링
             filtered_main = df_main[df_main['매출월'].isin(FILTERED_MONTHS)]
             trend_df = filtered_main.groupby(['월순서', '매출월', group_col])['매출액_숫자'].sum().reset_index().sort_values('월순서')
             
@@ -401,7 +390,6 @@ else:
                 d = trend_df[trend_df[group_col] == item]
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto', marker_color=current_color_map.get(item, '#cccccc')))
             
-            # 🔥 Y축 M -> 백 단위 변경 및 스케일 자동 적용
             tot_series = filtered_main.groupby('매출월')['매출액_숫자'].sum().reindex(FILTERED_MONTHS).fillna(0)
             fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}백" for v in tot_series.values], textposition="top center"))
             
@@ -435,10 +423,23 @@ else:
         if not page_df.empty:
             curr_comm = page_df[page_df['매출월'] == sel_month]
             
-            # 🔥 기본 지표 및 수수료 계산
             total_comm_rev = curr_comm['매출액'].sum()
             c_paid_comm = curr_comm['지급수수료'].sum()
             c_net_rev = curr_comm['실매출액'].sum()
+            
+            # --- 🚀 1. YTD (연누적) 계산 (수수료 메뉴용) ---
+            target_year_prefix = "20" + sel_month[:2]
+            curr_month_order = all_dates_df[all_dates_df['매출월'] == sel_month]['월순서'].values[0]
+            
+            ytd_df = page_df[(page_df['월순서'].str.startswith(target_year_prefix)) & (page_df['월순서'] <= curr_month_order)]
+            ytd_total = ytd_df['매출액'].sum()
+            
+            prev_year_prefix = str(int(target_year_prefix) - 1)
+            prev_y_month_order = curr_month_order.replace(target_year_prefix, prev_year_prefix)
+            pytd_df = page_df[(page_df['월순서'].str.startswith(prev_year_prefix)) & (page_df['월순서'] <= prev_y_month_order)]
+            pytd_total = pytd_df['매출액'].sum()
+            ytd_growth = (ytd_total - pytd_total) / pytd_total * 100 if pytd_total > 0 else 0
+            # ---------------------------
             
             idx = month_list.index(sel_month)
             p_comm_total, p_paid_comm, p_net_rev, p_month = 0, 0, 0, ""
@@ -455,26 +456,29 @@ else:
                 if p_paid_comm > 0: paid_growth_rate = (c_paid_comm - p_paid_comm) / p_paid_comm * 100
                 if p_net_rev > 0: net_growth_rate = (c_net_rev - p_net_rev) / p_net_rev * 100
 
-            # 🔥 UI 카드 3개 분할 표기 (총수납액, 지급수수료, 실매출액)
-            m1, m2, m3 = st.columns(3)
-            metric_title = "총 수납액 합계" if sel_agent == "전체" else f"[{sel_agent}] 총 수납액"
+            # 🔥 UI 카드 4개 분할 표기 (YTD 포함)
+            m1, m_ytd, m2, m3 = st.columns([1, 1.2, 1, 1])
+            metric_title = "당월 수납액" if sel_agent == "전체" else f"[{sel_agent}] 당월 수납액"
             
             with m1:
                 if p_comm_total > 0: st.metric(metric_title, f"{total_comm_rev:,.0f}원", f"{c_growth_rate:.1f}%")
                 else: st.metric(metric_title, f"{total_comm_rev:,.0f}원")
+            with m_ytd:
+                if pytd_total > 0: st.metric(f"📅 {target_year_prefix}년 누적(YTD)", f"{ytd_total:,.0f}원", f"{ytd_growth:+.1f}% (YoY)")
+                else: st.metric(f"📅 {target_year_prefix}년 누적(YTD)", f"{ytd_total:,.0f}원")
             with m2:
                 if p_paid_comm > 0: st.metric("지급수수료", f"{c_paid_comm:,.0f}원", f"{paid_growth_rate:.1f}%")
                 else: st.metric("지급수수료", f"{c_paid_comm:,.0f}원")
             with m3:
-                if p_net_rev > 0: st.metric("실매출액(총수납액-지급수수료)", f"{c_net_rev:,.0f}원", f"{net_growth_rate:.1f}%")
-                else: st.metric("실매출액(총수납액-지급수수료)", f"{c_net_rev:,.0f}원")
+                if p_net_rev > 0: st.metric("실매출액(수납액-수수료)", f"{c_net_rev:,.0f}원", f"{net_growth_rate:.1f}%")
+                else: st.metric("실매출액(수납액-수수료)", f"{c_net_rev:,.0f}원")
 
             with st.container():
                 st.markdown(f"### 💡 AI 실적 분석 리포트")
                 if p_comm_total > 0:
                     c_diff_amt = total_comm_rev - p_comm_total
-                    if c_growth_rate > 0: st.success(f"📈 **전월 대비 매출액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
-                    elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 매출액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
+                    if c_growth_rate > 0: st.success(f"📈 **전월 대비 당월 매출액이 증가했습니다!** (+{c_diff_amt:,.0f}원 / +{c_growth_rate:.1f}%)")
+                    elif c_growth_rate < 0: st.warning(f"📉 **전월 대비 당월 매출액이 감소했습니다.** ({c_diff_amt:,.0f}원 / {c_growth_rate:.1f}%)")
                     
                     if total_comm_rev == page_df.groupby('매출월')['매출액'].sum().max() and total_comm_rev > 0: 
                         st.info(f"🏆 **역대 최고치 경신!**")
@@ -509,7 +513,6 @@ else:
                     comp = curr_comm.groupby(['에이전트', '국적'])['매출액'].sum().reset_index()
                     comp = comp[comp['매출액'] > 0]
                     
-                    # 🔥 X축 스케일 M -> 백 단위 자동 변경 적용
                     fig_comp_bar = px.bar(comp, x='매출액', y='에이전트', color='국적', orientation='h', text='국적', color_discrete_map=NATION_COLOR_MAP)
                     fig_comp_bar.update_traces(textposition='inside')
                     
@@ -538,7 +541,6 @@ else:
                     table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
                     table_comm = table_comm.sort_values('당월매출', ascending=False)
                     
-                    # 🔥 에이전트 컬럼명 변경 및 수수료율 표기
                     table_comm['에이전트(수수료율)'] = table_comm['에이전트'].apply(lambda x: f"{x}({int(COMMISSION_RATES.get(x, 0.15)*100)}%)")
                     
                     total_row_comm = pd.DataFrame([{
@@ -646,7 +648,6 @@ else:
             chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
             st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
             
-            # 여기서 슬라이더로 선택된 FILTERED_MONTHS 만 필터링
             filtered_page = page_df[page_df['매출월'].isin(FILTERED_MONTHS)]
             trend_data = filtered_page.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
             
@@ -659,7 +660,6 @@ else:
             total_cline_series = filtered_page.groupby('매출월')['매출액'].sum().reindex(FILTERED_MONTHS).fillna(0)
             fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}백" for v in total_cline_series.values], textposition="top center"))
             
-            # 🔥 Y축 스케일 자동 적용
             c_vals, c_txts = get_dynamic_ticks(total_cline_series.max())
             fig_ctrend.update_layout(
                 barmode='stack', hovermode="x unified", height=500, 
