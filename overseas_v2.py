@@ -156,7 +156,30 @@ month_list = sorted(CHRONOLOGICAL_MONTHS, reverse=True)
 if not month_list:
     st.error("데이터에서 날짜 정보를 찾을 수 없습니다.")
 else:
-    sel_month = st.sidebar.selectbox("📅 조회 월 선택", month_list)
+    # ==========================================================
+    # --- 🎛️ 기간 조회 및 필터 설정 ---
+    # ==========================================================
+    # 1. 기존 상세 조회 월 선택 (상단 요약 카드용)
+    sel_month = st.sidebar.selectbox("📅 상세 조회 월 선택", month_list)
+
+    # 2. 신규 다중 기간 검색 슬라이더 (트렌드 차트용)
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📈 트렌드 차트 기간 설정")
+    
+    # 기본값 설정: 최근 6개월 (데이터가 6개월 미만이면 전체)
+    default_start = CHRONOLOGICAL_MONTHS[-6] if len(CHRONOLOGICAL_MONTHS) >= 6 else CHRONOLOGICAL_MONTHS[0]
+    default_end = CHRONOLOGICAL_MONTHS[-1]
+
+    start_month, end_month = st.sidebar.select_slider(
+        "조회할 기간(시작월 - 종료월)을 선택하세요",
+        options=CHRONOLOGICAL_MONTHS,
+        value=(default_start, default_end)
+    )
+
+    # 선택된 기간에 해당하는 월 리스트 추출
+    start_idx = CHRONOLOGICAL_MONTHS.index(start_month)
+    end_idx = CHRONOLOGICAL_MONTHS.index(end_month)
+    FILTERED_MONTHS = CHRONOLOGICAL_MONTHS[start_idx : end_idx + 1]
 
     # ==========================================================
     # --- 메뉴 1: 온리프 해외매출 전체 ---
@@ -346,22 +369,27 @@ else:
                             
                         st.dataframe(reg_table[sub_cols], use_container_width=True, hide_index=True, column_config=sub_config)
 
+            # 🔥 기간 필터가 적용된 월별 성장 추이
             st.divider()
             st.subheader(f"📈 전체 월별 성장 추이 ({view_mode} 기준)")
-            trend_df = df_main.groupby(['월순서', '매출월', group_col])['매출액_숫자'].sum().reset_index().sort_values('월순서')
+            
+            # 여기서 슬라이더로 선택된 FILTERED_MONTHS 만 필터링
+            filtered_main = df_main[df_main['매출월'].isin(FILTERED_MONTHS)]
+            trend_df = filtered_main.groupby(['월순서', '매출월', group_col])['매출액_숫자'].sum().reset_index().sort_values('월순서')
+            
             fig = go.Figure()
             for item in trend_df[group_col].unique():
                 d = trend_df[trend_df[group_col] == item]
                 fig.add_trace(go.Bar(x=d['매출월'], y=d['매출액_숫자'], name=item, text=item, textposition='auto', marker_color=current_color_map.get(item, '#cccccc')))
             
             # 🔥 Y축 M -> 백 단위 변경 및 스케일 자동 적용
-            tot_series = df_main.groupby('매출월')['매출액_숫자'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
+            tot_series = filtered_main.groupby('매출월')['매출액_숫자'].sum().reindex(FILTERED_MONTHS).fillna(0)
             fig.add_trace(go.Scatter(x=tot_series.index, y=tot_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}백" for v in tot_series.values], textposition="top center"))
             
             t_vals, t_txts = get_dynamic_ticks(tot_series.max())
             fig.update_layout(
                 barmode='stack', hovermode="x unified", 
-                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, 
+                xaxis={'categoryorder': 'array', 'categoryarray': FILTERED_MONTHS}, 
                 yaxis=dict(tickmode='array', tickvals=t_vals, ticktext=t_txts),
                 bargap=0.45
             )
@@ -594,25 +622,29 @@ else:
                             
                         st.dataframe(table_comm[display_cols], use_container_width=True, hide_index=True, column_config=col_config)
 
-            # 🔥 월별 수수료 매출 추이 (상세 정산 내역 밑으로 이동 완료) + M단위에서 백단위로 변경
+            # 🔥 기간 필터가 적용된 수수료 매출 추이
             st.divider()
             chart_subtitle = "에이전트별 누적" if sel_agent == "전체" else "국가(국적)별 누적"
             st.subheader(f"📈 월별 수수료 매출 추이 ({chart_subtitle})")
-            trend_data = page_df.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
+            
+            # 여기서 슬라이더로 선택된 FILTERED_MONTHS 만 필터링
+            filtered_page = page_df[page_df['매출월'].isin(FILTERED_MONTHS)]
+            trend_data = filtered_page.groupby(['월순서', '매출월', g_col])['매출액'].sum().reset_index().sort_values('월순서')
+            
             fig_ctrend = go.Figure()
             for g_item in trend_data[g_col].unique():
                 a_data = trend_data[trend_data[g_col] == g_item]
                 c_color = AGENT_COLOR_MAP.get(g_item, '#ccc') if sel_agent == "전체" else NATION_COLOR_MAP.get(g_item, '#ccc')
                 fig_ctrend.add_trace(go.Bar(x=a_data['매출월'], y=a_data['매출액'], name=g_item, text=g_item, textposition='auto', marker_color=c_color))
             
-            total_cline_series = page_df.groupby('매출월')['매출액'].sum().reindex(CHRONOLOGICAL_MONTHS).fillna(0)
+            total_cline_series = filtered_page.groupby('매출월')['매출액'].sum().reindex(FILTERED_MONTHS).fillna(0)
             fig_ctrend.add_trace(go.Scatter(x=total_cline_series.index, y=total_cline_series.values, name='총합', line=dict(color='black', width=3), mode='lines+markers+text', text=[f"{v/1000000:.1f}백" for v in total_cline_series.values], textposition="top center"))
             
             # 🔥 Y축 스케일 자동 적용
             c_vals, c_txts = get_dynamic_ticks(total_cline_series.max())
             fig_ctrend.update_layout(
                 barmode='stack', hovermode="x unified", height=500, 
-                xaxis={'categoryorder': 'array', 'categoryarray': CHRONOLOGICAL_MONTHS}, 
+                xaxis={'categoryorder': 'array', 'categoryarray': FILTERED_MONTHS}, 
                 yaxis=dict(tickmode='array', tickvals=c_vals, ticktext=c_txts),
                 bargap=0.45
             )
