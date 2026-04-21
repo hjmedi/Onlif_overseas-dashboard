@@ -162,6 +162,21 @@ else:
     # 1. 기존 상세 조회 월 선택 (상단 요약 카드용)
     sel_month = st.sidebar.selectbox("📅 상세 조회 월 선택", month_list)
 
+    # 🔥 최신 월(진행 중인 월)인 경우, 마지막 데이터 날짜 추출 로직
+    title_suffix = ""
+    if sel_month == month_list[0]:
+        max_dates = []
+        if not df_main.empty:
+            m_max = df_main[df_main['매출월'] == sel_month]['날짜형'].max()
+            if pd.notna(m_max): max_dates.append(m_max)
+        if not df_comm.empty:
+            c_max = df_comm[df_comm['매출월'] == sel_month]['날짜형'].max()
+            if pd.notna(c_max): max_dates.append(c_max)
+            
+        if max_dates:
+            latest_date = max(max_dates)
+            title_suffix = f"(~{latest_date.month}/{latest_date.day}까지)"
+
     # 2. 신규 다중 기간 검색 슬라이더 (트렌드 차트용)
     st.sidebar.markdown("---")
     st.sidebar.subheader("📈 트렌드 차트 기간 설정")
@@ -185,7 +200,9 @@ else:
     # --- 메뉴 1: 온리프 해외매출 전체 ---
     # ==========================================================
     if menu == "🌐 온리프 해외매출 전체":
-        st.title(f"🌐 {sel_month} 온리프 해외매출 전체")
+        # 🔥 타이틀에 title_suffix 추가
+        st.title(f"🌐 {sel_month} 온리프 해외매출 전체 {title_suffix}")
+        
         view_mode = st.sidebar.radio("🔎 분석 기준", ["국가별", "권역별"])
         group_col = '국적' if view_mode == "국가별" else '권역'
         current_color_map = NATION_COLOR_MAP if view_mode == "국가별" else REGION_COLOR_MAP
@@ -417,7 +434,8 @@ else:
             g_col = '국적'
             page_title = f"[{sel_agent}] 에이전트 상세 분석"
 
-        st.title(f"💸 {sel_month} {page_title}")
+        # 🔥 타이틀에 title_suffix 추가
+        st.title(f"💸 {sel_month} {page_title} {title_suffix}")
         
         if not page_df.empty:
             curr_comm = page_df[page_df['매출월'] == sel_month]
