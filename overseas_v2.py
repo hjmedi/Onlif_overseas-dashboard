@@ -298,6 +298,9 @@ else:
                     table_df = curr_group.copy()
                     table_df['전월매출'] = 0
 
+                # 🔥 전월/당월 모두 0인 데이터 제거 필터 적용
+                table_df = table_df[(table_df['당월매출'] > 0) | (table_df['전월매출'] > 0)]
+
                 table_df['증감액'] = table_df['당월매출'] - table_df['전월매출']
                 table_df = table_df.sort_values('당월매출', ascending=False)
                 
@@ -340,6 +343,9 @@ else:
                             reg_table = reg_curr.copy()
                             reg_table['전월매출'] = 0
                             
+                        # 🔥 전월/당월 모두 0인 데이터 제거 필터 적용
+                        reg_table = reg_table[(reg_table['당월매출'] > 0) | (reg_table['전월매출'] > 0)]
+
                         reg_table['증감액'] = reg_table['당월매출'] - reg_table['전월매출']
                         reg_table = reg_table.sort_values('당월매출', ascending=False)
                         
@@ -516,6 +522,9 @@ else:
                         table_comm = curr_group.copy()
                         table_comm['전월매출'] = 0
 
+                    # 🔥 전월/당월 모두 0인 데이터 제거 필터 적용
+                    table_comm = table_comm[(table_comm['당월매출'] > 0) | (table_comm['전월매출'] > 0)]
+
                     table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
                     table_comm = table_comm.sort_values('당월매출', ascending=False)
                     
@@ -583,6 +592,9 @@ else:
                         else:
                             table_comm = curr_group.copy()
                             table_comm['전월매출'] = 0
+
+                        # 🔥 전월/당월 모두 0인 데이터 제거 필터 적용
+                        table_comm = table_comm[(table_comm['당월매출'] > 0) | (table_comm['전월매출'] > 0)]
 
                         table_comm['증감액'] = table_comm['당월매출'] - table_comm['전월매출']
                         table_comm = table_comm.sort_values('당월매출', ascending=False)
