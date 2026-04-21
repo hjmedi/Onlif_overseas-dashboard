@@ -137,9 +137,9 @@ NATION_COLOR_MAP = {nation: extended_colors[i] for i, nation in enumerate(all_na
 
 # 🎯 중국 및 일본 색상 명시적 고정 (눈이 편안한 파스텔 톤)
 if '중국' in NATION_COLOR_MAP:
-    NATION_COLOR_MAP['중국'] = '#81C784' # 파스텔 초록색
+    NATION_COLOR_MAP['중국'] = '#81C784'
 if '일본' in NATION_COLOR_MAP:
-    NATION_COLOR_MAP['일본'] = '#64B5F6' # 파스텔 파란색
+    NATION_COLOR_MAP['일본'] = '#64B5F6'
 
 all_regions = sorted(df_main['권역'].dropna().unique()) if not df_main.empty else []
 REGION_COLOR_MAP = {region: extended_colors[i] for i, region in enumerate(all_regions)}
@@ -241,8 +241,8 @@ else:
             m1, m_ytd, m2, m3, m_space, m4 = st.columns([1, 1.2, 1, 1, 0.3, 1.2])
             
             with m1:
-                if prev_total > 0: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
-                else: st.metric("총 매출액 (VAT 제외)", f"{total_rev:,.0f}원")
+                if prev_total > 0: st.metric("당월 매출액 (VAT제외)", f"{total_rev:,.0f}원", f"{growth_rate:.1f}%")
+                else: st.metric("당월 매출액 (VAT제외)", f"{total_rev:,.0f}원")
             with m_ytd:
                 if pytd_total > 0: st.metric(f"📅 {target_year_prefix}년 누적(YTD)", f"{ytd_total:,.0f}원", f"{ytd_growth:+.1f}% (YoY)")
                 else: st.metric(f"📅 {target_year_prefix}년 누적(YTD)", f"{ytd_total:,.0f}원")
@@ -258,8 +258,8 @@ else:
                 st.markdown("<div style='border-left: 2px solid #e0e0e0; height: 80px; margin: auto; width: 2px;'></div>", unsafe_allow_html=True)
                 
             with m4:
-                if prev_anpa_fee > 0: st.metric("💡 앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원", f"{anpa_growth:.1f}%")
-                else: st.metric("💡 앤파 컨설팅수수료(20%)", f"{anpa_fee:,.0f}원")
+                if prev_anpa_fee > 0: st.metric("💡 앤파 컨설팅(20%)", f"{anpa_fee:,.0f}원", f"{anpa_growth:.1f}%")
+                else: st.metric("💡 앤파 컨설팅(20%)", f"{anpa_fee:,.0f}원")
                 
             st.markdown("<br>", unsafe_allow_html=True)
 
@@ -267,8 +267,8 @@ else:
                 st.markdown("### 💡 AI 자동 분석 리포트")
                 if prev_total > 0:
                     diff_amt = total_rev - prev_total
-                    if growth_rate > 0: st.success(f"📈 **전월 대비 총매출이 성장했습니다!** (+{diff_amt:,.0f}원 / +{growth_rate:.1f}%)")
-                    elif growth_rate < 0: st.warning(f"📉 **전월 대비 총매출이 감소했습니다.** ({diff_amt:,.0f}원 / {growth_rate:.1f}%)")
+                    if growth_rate > 0: st.success(f"📈 **전월 대비 당월 매출이 성장했습니다!** (+{diff_amt:,.0f}원 / +{growth_rate:.1f}%)")
+                    elif growth_rate < 0: st.warning(f"📉 **전월 대비 당월 매출이 감소했습니다.** ({diff_amt:,.0f}원 / {growth_rate:.1f}%)")
                     if total_rev == df_main.groupby('매출월')['매출액_숫자'].sum().max(): st.info("🏆 **역대 최고 월 매출 기록!**")
                         
                     curr_nations = m_df.groupby('국적')['매출액_숫자'].sum()
