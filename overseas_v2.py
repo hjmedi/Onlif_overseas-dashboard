@@ -200,8 +200,11 @@ else:
     # --- 메뉴 1: 온리프 해외매출 전체 ---
     # ==========================================================
     if menu == "🌐 온리프 해외매출 전체":
-        # 🔥 타이틀에 title_suffix 추가
-        st.title(f"🌐 {sel_month} 온리프 해외매출 전체 {title_suffix}")
+        # 🔥 타이틀에 title_suffix 추가 (primary 파란 대신 빨간색)
+        st.markdown(
+            f"<h1 style='color: red;'>🌐 {sel_month} 온리프 해외매출 전체 {title_suffix}</h1>",
+            unsafe_allow_html=True,
+        )
         
         view_mode = st.sidebar.radio("🔎 분석 기준", ["국가별", "권역별"])
         group_col = '국적' if view_mode == "국가별" else '권역'
