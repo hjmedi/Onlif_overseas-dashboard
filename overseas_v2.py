@@ -8,6 +8,26 @@ from io import StringIO
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 해외 매출 통합 관리", layout="wide")
 
+# 🔧 Sidebar select_slider(및 slider) 포인트 컬러를 파란색으로 고정
+SLIDER_BLUE = "#1f77b4"
+st.markdown(
+    f"""
+<style>
+/* Streamlit slider/select_slider uses BaseWeb Slider internally */
+div[data-baseweb="slider"] div[role="slider"] {{
+  background-color: {SLIDER_BLUE} !important; /* thumb */
+}}
+div[data-baseweb="slider"] div[data-testid="stTickBar"] > div {{
+  background-color: {SLIDER_BLUE} !important; /* active track segment (varies by version) */
+}}
+div[data-baseweb="slider"] div {{
+  --slider-color: {SLIDER_BLUE};
+}}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 # ✅ 데이터 주소 및 수수료율 설정
 URL_MAIN = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsH0xOUdAP2Sp4rulPM1uejTOzCZFmoiBJ4z3rTlUvtihQebdh3Q1uMLGmuuCg7zR8uupz4kfLHBQ_/pub?gid=0&single=true&output=csv"
 COMMISSION_URLS = {
