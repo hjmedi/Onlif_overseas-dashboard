@@ -5,122 +5,165 @@ import plotly.graph_objects as go
 # 1. 페이지 설정
 st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout="wide")
 
-# 2. 모든 시트 데이터 로드 및 매핑 함수
+# --- [고정 설정 정보] ---
+CONFIG = {
+    "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 51, "color": "#333333"},
+    "온리프": {
+        "sheet": "온리프_실적", "header": 6, 
+        "전체매출": 25, "전체영익": 52,
+        "병원매출": 77, "병원영익": 116,
+        "법인매출": 121, "법인영익": 155,
+        "color": "#1f77b4"
+    },
+    "르샤인": {
+        "sheet": "르샤인_실적", "header": 5,
+        "전체매출": 36, "전체영익": 60,
+        "병원매출": 85, "병원영익": 127,
+        "법인매출": 132, "법인영익": 163,
+        "color": "#006400"
+    },
+    "오블리브": {
+        "sheet": "오블리브(송도)_실적", "header": 6,
+        "전체매출": 34, "전체영익": 58,
+        "병원매출": 83, "병원영익": 125,
+        "법인매출": 130, "법인영익": 163,
+        "color": "#8B4513"
+    }
+}
+
 @st.cache_data
 def load_all_data():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
-    
-    sheets = {
-        "HQ": "HQ_실적",
-        "온리프": "온리프_실적",
-        "르샤인": "르샤인_실적",
-        "오블리브": "오블리브(송도)_실적"
-    }
-    
-    header_rows = {"HQ": 5-1, "온리프": 6-1, "르샤인": 5-1, "오블리브": 6-1}
-    
-    data_frames = {}
-    col_maps = {}
-    
+    data_frames, col_maps = {}, {}
     months_dict = {"25.01": "2501", "25.02": "2502", "25.03": "2503", "25.04": "2504", "25.05": "2505", "25.06": "2506", 
                    "25.07": "2507", "25.08": "2508", "25.09": "2509", "25.10": "2510", "25.11": "2511", "25.12": "2512", 
                    "26.01": "2601", "26.02": "2602"}
 
-    for key, s_name in sheets.items():
+    for key, conf in CONFIG.items():
         try:
-            df = pd.read_excel(file_name, sheet_name=s_name, header=None)
+            df = pd.read_excel(file_name, sheet_name=conf["sheet"], header=None)
             data_frames[key] = df
-            h_row = df.iloc[header_rows[key]]
-            c_map = {}
-            for m_label, m_val in months_dict.items():
-                for i, cell in enumerate(h_row):
-                    if str(m_val) in str(cell).replace(".0", ""):
-                        c_map[m_label] = i
-                        break
+            h_row = df.iloc[conf["header"]-1]
+            c_map = {m_l: i for m_l, m_v in months_dict.items() for i, cell in enumerate(h_row) if str(m_v) in str(cell).replace(".0", "")}
             col_maps[key] = c_map
-        except:
-            st.error(f"시트 '{s_name}' 로드 실패")
-            
+        except: st.error(f"시트 '{conf['sheet']}' 로드 실패")
     return data_frames, col_maps
 
 def get_val(df, row, col):
     if col is None or pd.isna(col): return 0
-    v = pd.to_numeric(df.iloc[row, col], errors='coerce')
+    v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
-# 3. 공발 그래프 생성 함수
-def draw_combo_chart(title, months, sales, profit, color):
-    st.markdown(f"## {title}")
+# 요약 카드 렌더링 함수
+def display_metrics(months, sales_list, profit_list):
+    if len(sales_list) < 1: return
+    
+    # 최신월 실적
+    curr_s = sales_list[-1]
+    curr_p = profit_list[-1]
+    curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
+    
+    # 전월 대비 증감 계산
+    if len(sales_list) > 1:
+        prev_s = sales_list[-2]
+        prev_p = profit_list[-2]
+        prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
+        
+        delta_s = f"{curr_s - prev_s:+,.1f}M ({(curr_s/prev_s-1)*100:+.1f}%)" if prev_s != 0 else "N/A"
+        delta_p = f"{curr_p - prev_p:+,.1f}M ({(curr_p/prev_p-1)*100:+.1f}%)" if prev_p != 0 else "N/A"
+        delta_r = f"{curr_r - prev_r:+.1f}%p"
+    else:
+        delta_s, delta_p, delta_r = None, None, None
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric(f"📅 {months[-1]} 매출", f"{curr_s:,.0f}M", delta_s)
+    m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p:,.1f}M", delta_p)
+    m3.metric(f"📊 {months[-1]} 이익률", f"{curr_r:.1f}%", delta_r)
+
+# 공통 차트 함수
+def draw_chart(title, months, s, p, c):
+    st.markdown(f"### {title}")
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=months, y=profit, name="영업이익", marker_color=color, opacity=0.6, text=[f"{v:,.0f}" for v in profit], textposition="outside"))
-    fig.add_trace(go.Scatter(x=months, y=sales, name="매출", mode="lines+markers+text", line=dict(color="#FF4B4B", width=3), text=[f"{v:,.0f}" for v in sales], textposition="top center"))
-    fig.update_layout(height=450, margin=dict(l=20, r=20, t=30, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="금액 (백만 원)", tickformat=",d"), xaxis=dict(type='category'), hovermode="x unified")
+    fig.add_trace(go.Bar(x=months, y=p, name="영업이익", marker_color=c, opacity=0.6, text=[f"{v:,.1f}" for v in p], textposition="outside"))
+    fig.add_trace(go.Scatter(x=months, y=s, name="매출", mode="lines+markers+text", line=dict(color="#FF4B4B", width=3), text=[f"{v:,.0f}" for v in s], textposition="top center"))
+    fig.update_layout(height=400, margin=dict(l=10,r=10,t=30,b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="백만 원"), xaxis=dict(type='category'), hovermode="x unified")
     fig.add_hline(y=0, line_dash="dash", line_color="black")
     st.plotly_chart(fig, use_container_width=True)
 
-# 4. 사이드바 구성
+# --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
-selected_main_bu = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
+selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "병원 실적 비교", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
 
 try:
     dfs, maps = load_all_data()
     all_months = list(maps["온리프"].keys())
+    start_m, end_m = st.sidebar.select_slider("기간", options=all_months, value=(all_months[0], all_months[-1]), label_visibility="collapsed")
+    sel_months = all_months[all_months.index(start_m) : all_months.index(end_m) + 1]
 
-    st.sidebar.markdown("### 📈 트렌드 차트 기간 설정")
-    start_m, end_m = st.sidebar.select_slider("기간 선택", options=all_months, value=(all_months[0], all_months[-1]), label_visibility="collapsed")
-    selected_months = all_months[all_months.index(start_m) : all_months.index(end_m) + 1]
-
-    if selected_main_bu == "연결 실적(통합)":
-        st.title("🌐 메디빌더 그룹 연결 실적 현황")
+    if selected_mode == "연결 실적(통합)":
+        st.title("🌐 그룹 연결 실적 현황")
+        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
+        tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         
-        # --- [1] 전체 연결 데이터 계산 ---
-        # 매출: 각 BU별 전체 매출 행 합산 (온리프:25행, 르샤인:36행, 오블리브:34행)
-        total_sales = [get_val(dfs["온리프"], 25-1, maps["온리프"][m]) + 
-                       get_val(dfs["르샤인"], 36-1, maps["르샤인"][m]) + 
-                       get_val(dfs["오블리브"], 34-1, maps["오블리브"][m]) for m in selected_months]
+        st.info(f"💡 {sel_months[-1]} 기준 그룹 전체 실적 요약")
+        display_metrics(sel_months, ts, tp)
+        draw_chart("📊 그룹 전체 연결 실적", sel_months, ts, tp, "#E91E63")
         
-        # 영업이익: 3개 BU 합계 + HQ (52, 60, 58, 51행)
-        total_profit = [get_val(dfs["온리프"], 52-1, maps["온리프"][m]) + 
-                        get_val(dfs["르샤인"], 60-1, maps["르샤인"][m]) + 
-                        get_val(dfs["오블리브"], 58-1, maps["오블리브"][m]) + 
-                        get_val(dfs["HQ"], 51-1, maps["HQ"][m]) for m in selected_months]
-        
-        draw_combo_chart("📊 그룹 전체 연결 실적 (병원 합계 매출 + 그룹 영업이익)", selected_months, total_sales, total_profit, "#E91E63")
         st.divider()
+        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
+        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        display_metrics(sel_months, cs, cp)
+        draw_chart("🏢 법인 연결 실적", sel_months, cs, cp, "#9C27B0")
 
-        # --- [2] 법인 연결 데이터 계산 ---
-        corp_sales = [get_val(dfs["HQ"], 14-1, maps["HQ"][m]) + 
-                      get_val(dfs["온리프"], 121-1, maps["온리프"][m]) + 
-                      get_val(dfs["르샤인"], 132-1, maps["르샤인"][m]) + 
-                      get_val(dfs["오블리브"], 130-1, maps["오블리브"][m]) for m in selected_months]
-        
-        corp_profit = [get_val(dfs["온리프"], 155-1, maps["온리프"][m]) + 
-                       get_val(dfs["르샤인"], 163-1, maps["르샤인"][m]) + 
-                       get_val(dfs["오블리브"], 163-1, maps["오블리브"][m]) + 
-                       get_val(dfs["HQ"], 51-1, maps["HQ"][m]) for m in selected_months]
-        
-        draw_combo_chart("🏢 법인 연결 실적 (본사 + 앤파트너스 합산)", selected_months, corp_sales, corp_profit, "#9C27B0")
+    elif selected_mode == "병원 실적 비교":
+        st.title("⚖️ 병원별 실적 일대일 비교")
+        h1 = st.sidebar.selectbox("병원 1", ["온리프", "르샤인", "오블리브"], index=0)
+        h2 = st.sidebar.selectbox("병원 2", ["온리프", "르샤인", "오블리브"], index=1)
+        # (비교 모드 로직은 이전과 동일...)
+        def get_h_data(name):
+            s = [get_val(dfs[name], CONFIG[name]["병원매출"], maps[name][m]) for m in sel_months]
+            p = [get_val(dfs[name], CONFIG[name]["병원영익"], maps[name][m]) for m in sel_months]
+            r = [(pp/ss*100 if ss!=0 else 0) for ss, pp in zip(s, p)]
+            return s, r, CONFIG[name]["color"]
+        s1, r1, c1 = get_h_data(h1); s2, r2, c2 = get_h_data(h2)
+        st.subheader("📈 병원별 매출 추이")
+        fig_s = go.Figure()
+        fig_s.add_trace(go.Scatter(x=sel_months, y=s1, name=f"{h1}", mode='lines+markers+text', line=dict(color=c1, width=4), text=[f"{v:,.0f}" for v in s1], textposition="top center"))
+        fig_s.add_trace(go.Scatter(x=sel_months, y=s2, name=f"{h2}", mode='lines+markers+text', line=dict(color=c2, width=4, dash='dot'), text=[f"{v:,.0f}" for v in s2], textposition="bottom center"))
+        st.plotly_chart(fig_s, use_container_width=True)
+        st.subheader("💰 영업이익률(%) 비교")
+        fig_r = go.Figure()
+        fig_r.add_trace(go.Bar(x=sel_months, y=r1, name=f"{h1}", marker_color=c1, text=[f"{v:.1f}%" for v in r1], textposition="outside"))
+        fig_r.add_trace(go.Bar(x=sel_months, y=r2, name=f"{h2}", marker_color=c2, opacity=0.4, text=[f"{v:.1f}%" for v in r2], textposition="outside"))
+        st.plotly_chart(fig_r, use_container_width=True)
 
     else:
-        st.title(f"🚀 {selected_main_bu} 경영 리포트")
-        key_map = {"메디빌더": "HQ", "온리프 BU": "온리프", "르샤인 BU": "르샤인", "오블리브 BU": "오블리브"}
-        k = key_map[selected_main_bu]
-        color_map = {"메디빌더": "#333333", "온리프 BU": "#1f77b4", "르샤인 BU": "#006400", "오블리브 BU": "#8B4513"}
+        st.title(f"🚀 {selected_mode} 경영 리포트")
+        k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
+        conf = CONFIG[k]
         
-        if k == "HQ":
-            row_map = {"📊 메디빌더 본사(HQ) 실적": {"매출": 14-1, "영익": 51-1}}
-        elif k == "온리프":
-            row_map = {"📊 온리프 BU 합계": {"매출": 25-1, "영익": 52-1}, "🏥 온리프 성형외과": {"매출": 77-1, "영익": 116-1}, "🤝 온리프앤파트너스": {"매출": 121-1, "영익": 155-1}}
-        elif k == "르샤인":
-            row_map = {"📊 르샤인 BU 합계": {"매출": 36-1, "영익": 60-1}, "🏥 르샤인 클리닉": {"매출": 85-1, "영익": 127-1}, "🤝 르샤인앤파트너스": {"매출": 132-1, "영익": 163-1}}
+        # 해당 BU의 가장 핵심 실적(합계)을 요약 카드로 표시
+        main_s_row = conf["매출"] if k == "메디빌더" else conf["전체매출"]
+        main_p_row = conf["영익"] if k == "메디빌더" else conf["전체영익"]
+        
+        sum_s = [get_val(dfs[k], main_s_row, maps[k][m]) for m in sel_months]
+        sum_p = [get_val(dfs[k], main_p_row, maps[k][m]) for m in sel_months]
+        
+        display_metrics(sel_months, sum_s, sum_p)
+        st.divider()
+
+        if k == "메디빌더":
+            draw_chart("📊 HQ 실적", sel_months, sum_s, sum_p, conf["color"])
         else:
-            row_map = {"📊 오블리브 BU 합계": {"매출": 34-1, "영익": 58-1}, "🏥 오블리브 의원": {"매출": 83-1, "영익": 125-1}, "🤝 오블리브앤파트너스": {"매출": 130-1, "영익": 163-1}}
-        
-        for title, rows in row_map.items():
-            s = [get_val(dfs[k], rows["매출"], maps[k][m]) for m in selected_months]
-            p = [get_val(dfs[k], rows["영익"], maps[k][m]) for m in selected_months]
-            draw_combo_chart(title, selected_months, s, p, color_map[selected_main_bu])
-            st.divider()
+            row_map = {
+                f"📊 {k} BU 합계": {"s": conf["전체매출"], "p": conf["전체영익"]},
+                f"🏥 {k} 의원": {"s": conf["병원매출"], "p": conf["병원영익"]},
+                f"🤝 {k} 앤파트너스": {"s": conf["법인매출"], "p": conf["법인영익"]}
+            }
+            for title, r in row_map.items():
+                s = [get_val(dfs[k], r["s"], maps[k][m]) for m in sel_months]
+                p = [get_val(dfs[k], r["p"], maps[k][m]) for m in sel_months]
+                draw_chart(title, sel_months, s, p, conf["color"]); st.divider()
 
 except Exception as e:
-    st.error(f"오류가 발생했습니다: {e}")
+    st.error(f"데이터 처리 중 오류: {e}")
