@@ -5,8 +5,7 @@ import plotly.express as px
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 인센티브 대시보드", layout="wide")
 
-st.title("💰 해외사업본부 1분기 인센티브 리포트")
-st.info("1월 ~ 3월 귀속분 통합 실적 및 개인별 성과 지표입니다.")
+st.title("온리프 해외사업본부 인센티브 리포트")
 
 # 2. 데이터 정리
 data = [
