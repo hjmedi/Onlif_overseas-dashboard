@@ -58,7 +58,8 @@ with c1:
     st.subheader("📅 월별 인센티브 추이")
     monthly_inc = df.groupby("월")["인센티브"].sum().reset_index()
     fig1 = px.bar(monthly_inc, x="월", y="인센티브", text_auto=',.0f', color_discrete_sequence=['#1f77b4'])
-    st.plotly_chart(fig1, use_container_width=True)
+    fig1.update_layout(width=520, height=380)
+    st.plotly_chart(fig1, use_container_width=False)
 
 with c2:
     st.subheader("📊 개인별 누적 인센티브 합계")
