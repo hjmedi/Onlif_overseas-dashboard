@@ -28,18 +28,22 @@ df = pd.DataFrame(data)
 month_order = ["1월", "2월", "3월"]
 available_months = [m for m in month_order if m in df["월"].unique()]
 
-selected_months = st.multiselect(
-    "조회할 월 선택",
-    options=available_months,
-    default=available_months,
-)
-
-if not selected_months:
-    st.warning("최소 1개 이상의 월을 선택해주세요.")
+if not available_months:
+    st.error("월 데이터가 없습니다.")
     st.stop()
 
+start_month, end_month = st.select_slider(
+    "조회할 기간(시작월 - 종료월)을 선택하세요",
+    options=available_months,
+    value=(available_months[0], available_months[-1]),
+)
+
+start_idx = available_months.index(start_month)
+end_idx = available_months.index(end_month)
+selected_months = available_months[start_idx : end_idx + 1]
+
 df_filtered = df[df["월"].isin(selected_months)].copy()
-latest_month = max(selected_months, key=lambda m: month_order.index(m))
+latest_month = selected_months[-1]
 df_current = df[df["월"] == latest_month].copy()
 
 # 3. 상단 핵심 지표 (KPI)
