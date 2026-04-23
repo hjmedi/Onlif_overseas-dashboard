@@ -57,18 +57,14 @@ def get_val(df, row, col):
 # 요약 카드 렌더링 함수
 def display_metrics(months, sales_list, profit_list):
     if len(sales_list) < 1: return
-    
-    # 최신월 실적
     curr_s = sales_list[-1]
     curr_p = profit_list[-1]
     curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
     
-    # 전월 대비 증감 계산
     if len(sales_list) > 1:
         prev_s = sales_list[-2]
         prev_p = profit_list[-2]
         prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
-        
         delta_s = f"{curr_s - prev_s:+,.1f}M ({(curr_s/prev_s-1)*100:+.1f}%)" if prev_s != 0 else "N/A"
         delta_p = f"{curr_p - prev_p:+,.1f}M ({(curr_p/prev_p-1)*100:+.1f}%)" if prev_p != 0 else "N/A"
         delta_r = f"{curr_r - prev_r:+.1f}%p"
@@ -92,7 +88,8 @@ def draw_chart(title, months, s, p, c):
 
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
-selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "병원 실적 비교", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
+# '병원 실적 비교' 항목 제거
+selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
 
 try:
     dfs, maps = load_all_data()
@@ -115,34 +112,11 @@ try:
         display_metrics(sel_months, cs, cp)
         draw_chart("🏢 법인 연결 실적", sel_months, cs, cp, "#9C27B0")
 
-    elif selected_mode == "병원 실적 비교":
-        st.title("⚖️ 병원별 실적 일대일 비교")
-        h1 = st.sidebar.selectbox("병원 1", ["온리프", "르샤인", "오블리브"], index=0)
-        h2 = st.sidebar.selectbox("병원 2", ["온리프", "르샤인", "오블리브"], index=1)
-        # (비교 모드 로직은 이전과 동일...)
-        def get_h_data(name):
-            s = [get_val(dfs[name], CONFIG[name]["병원매출"], maps[name][m]) for m in sel_months]
-            p = [get_val(dfs[name], CONFIG[name]["병원영익"], maps[name][m]) for m in sel_months]
-            r = [(pp/ss*100 if ss!=0 else 0) for ss, pp in zip(s, p)]
-            return s, r, CONFIG[name]["color"]
-        s1, r1, c1 = get_h_data(h1); s2, r2, c2 = get_h_data(h2)
-        st.subheader("📈 병원별 매출 추이")
-        fig_s = go.Figure()
-        fig_s.add_trace(go.Scatter(x=sel_months, y=s1, name=f"{h1}", mode='lines+markers+text', line=dict(color=c1, width=4), text=[f"{v:,.0f}" for v in s1], textposition="top center"))
-        fig_s.add_trace(go.Scatter(x=sel_months, y=s2, name=f"{h2}", mode='lines+markers+text', line=dict(color=c2, width=4, dash='dot'), text=[f"{v:,.0f}" for v in s2], textposition="bottom center"))
-        st.plotly_chart(fig_s, use_container_width=True)
-        st.subheader("💰 영업이익률(%) 비교")
-        fig_r = go.Figure()
-        fig_r.add_trace(go.Bar(x=sel_months, y=r1, name=f"{h1}", marker_color=c1, text=[f"{v:.1f}%" for v in r1], textposition="outside"))
-        fig_r.add_trace(go.Bar(x=sel_months, y=r2, name=f"{h2}", marker_color=c2, opacity=0.4, text=[f"{v:.1f}%" for v in r2], textposition="outside"))
-        st.plotly_chart(fig_r, use_container_width=True)
-
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
         
-        # 해당 BU의 가장 핵심 실적(합계)을 요약 카드로 표시
         main_s_row = conf["매출"] if k == "메디빌더" else conf["전체매출"]
         main_p_row = conf["영익"] if k == "메디빌더" else conf["전체영익"]
         
