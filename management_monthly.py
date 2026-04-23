@@ -54,7 +54,7 @@ def get_val(df, row, col):
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
-# 요약 카드 렌더링 함수
+# 요약 카드 렌더링 함수 (억 단위 변환 적용)
 def display_metrics(months, sales_list, profit_list):
     if len(sales_list) < 1: return
     curr_s = sales_list[-1]
@@ -65,30 +65,43 @@ def display_metrics(months, sales_list, profit_list):
         prev_s = sales_list[-2]
         prev_p = profit_list[-2]
         prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
-        delta_s = f"{curr_s - prev_s:+,.1f}M ({(curr_s/prev_s-1)*100:+.1f}%)" if prev_s != 0 else "N/A"
-        delta_p = f"{curr_p - prev_p:+,.1f}M ({(curr_p/prev_p-1)*100:+.1f}%)" if prev_p != 0 else "N/A"
+        
+        # 차이값 계산 (단위: 억)
+        diff_s = (curr_s - prev_s) / 100
+        diff_p = (curr_p - prev_p) / 100
+        
+        delta_s = f"{diff_s:+.1f}억 ({(curr_s/prev_s-1)*100:+.1f}%)" if prev_s != 0 else "N/A"
+        delta_p = f"{diff_p:+.1f}억 ({(curr_p/prev_p-1)*100:+.1f}%)" if prev_p != 0 else "N/A"
         delta_r = f"{curr_r - prev_r:+.1f}%p"
     else:
         delta_s, delta_p, delta_r = None, None, None
 
     m1, m2, m3 = st.columns(3)
-    m1.metric(f"📅 {months[-1]} 매출", f"{curr_s:,.0f}M", delta_s)
-    m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p:,.1f}M", delta_p)
+    # 메인 표기 단위를 억(0.0)으로 변경
+    m1.metric(f"📅 {months[-1]} 매출", f"{curr_s/100:.1f}억", delta_s)
+    m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.2f}억", delta_p) # 영익은 단위가 작을 수 있어 소수점 둘째자리까지
     m3.metric(f"📊 {months[-1]} 이익률", f"{curr_r:.1f}%", delta_r)
 
-# 공통 차트 함수
+# 공통 차트 함수 (차트 내 텍스트도 억 단위로 변경)
 def draw_chart(title, months, s, p, c):
     st.markdown(f"### {title}")
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=months, y=p, name="영업이익", marker_color=c, opacity=0.6, text=[f"{v:,.1f}" for v in p], textposition="outside"))
-    fig.add_trace(go.Scatter(x=months, y=s, name="매출", mode="lines+markers+text", line=dict(color="#FF4B4B", width=3), text=[f"{v:,.0f}" for v in s], textposition="top center"))
-    fig.update_layout(height=400, margin=dict(l=10,r=10,t=30,b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="백만 원"), xaxis=dict(type='category'), hovermode="x unified")
+    # 영업이익 막대
+    fig.add_trace(go.Bar(
+        x=months, y=p, name="영업이익", marker_color=c, opacity=0.6, 
+        text=[f"{v/100:.1f}억" for v in p], textposition="outside"
+    ))
+    # 매출 꺾은선
+    fig.add_trace(go.Scatter(
+        x=months, y=s, name="매출", mode="lines+markers+text", line=dict(color="#FF4B4B", width=3), 
+        text=[f"{v/100:.1f}억" for v in s], textposition="top center"
+    ))
+    fig.update_layout(height=400, margin=dict(l=10,r=10,t=30,b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="단위: 백만 원"), xaxis=dict(type='category'), hovermode="x unified")
     fig.add_hline(y=0, line_dash="dash", line_color="black")
     st.plotly_chart(fig, use_container_width=True)
 
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
-# '병원 실적 비교' 항목 제거
 selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
 
 try:
