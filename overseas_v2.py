@@ -15,6 +15,13 @@ st.markdown(
 <style>
 /* Streamlit slider/select_slider uses BaseWeb Slider internally */
 
+/* Base theme primary가 빨간색이어도 슬라이더만 파란색으로 */
+div[data-baseweb="slider"] {{
+  --primary-color: {SLIDER_BLUE} !important;
+  --accent-color: {SLIDER_BLUE} !important;
+  accent-color: {SLIDER_BLUE} !important;
+}}
+
 /* 1) Thumb(핸들) */
 div[data-baseweb="slider"] div[role="slider"] {{
   background-color: {SLIDER_BLUE} !important;
@@ -26,6 +33,19 @@ div[data-baseweb="slider"] div[data-testid="stTickBar"] > div {{
 }}
 div[data-baseweb="slider"] div[aria-hidden="true"] {{
   background-color: {SLIDER_BLUE} !important;
+}}
+/* Track가 인라인 style로 빨간색 지정되는 경우 강제 덮어쓰기 */
+div[data-baseweb="slider"] div[style*="background-color: rgb(255"] {{
+  background-color: {SLIDER_BLUE} !important;
+}}
+div[data-baseweb="slider"] div[style*="background: rgb(255"] {{
+  background: {SLIDER_BLUE} !important;
+}}
+div[data-baseweb="slider"] div[style*="background-color:#ff"] {{
+  background-color: {SLIDER_BLUE} !important;
+}}
+div[data-baseweb="slider"] div[style*="background:#ff"] {{
+  background: {SLIDER_BLUE} !important;
 }}
 
 /* 3) 연/월 표시 텍스트(눈금 라벨) */
