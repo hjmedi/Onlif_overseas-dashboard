@@ -33,7 +33,8 @@ if not available_months:
 
 with st.sidebar:
     st.markdown("### 📌 당월")
-    st.caption("아래 누계 기간의 마지막 월이 당월로 자동 설정됩니다.")
+    st.caption("누계 기간 내에서 당월을 직접 선택할 수 있습니다.")
+    current_month_placeholder = st.empty()
     st.markdown("---")
     st.markdown("### 📈 누계")
     start_month, end_month = st.select_slider(
@@ -48,7 +49,12 @@ selected_months = available_months[start_idx : end_idx + 1]
 
 df_filtered = df[df["월"].isin(selected_months)].copy()
 latest_month = selected_months[-1]
-df_current = df[df["월"] == latest_month].copy()
+sel_month = current_month_placeholder.selectbox(
+    "당월 선택",
+    options=selected_months,
+    index=len(selected_months) - 1,
+)
+df_current = df[df["월"] == sel_month].copy()
 
 # 3. 상단 핵심 지표 (KPI)
 st.subheader("📌 핵심 성과 지표")
@@ -87,7 +93,7 @@ st.write("")  # 간격 조절
 c1, c2 = st.columns(2)
 
 with c1:
-    st.subheader(f"📅 당월 인센티브 구성 ({latest_month})")
+    st.subheader(f"📅 당월 인센티브 구성 ({sel_month})")
     current_stack = (
         df_current.groupby(["월", "성명"], as_index=False)["인센티브"]
         .sum()
@@ -106,7 +112,7 @@ with c1:
     st.plotly_chart(fig1, use_container_width=True)
 
 with c2:
-    st.subheader(f"📊 당월 개인별 인센티브 ({latest_month})")
+    st.subheader(f"📊 당월 개인별 인센티브 ({sel_month})")
     current_person_df = (
         df_current.groupby("성명", as_index=False)["인센티브"]
         .sum()
