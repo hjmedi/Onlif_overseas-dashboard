@@ -219,8 +219,9 @@ else:
     # ==========================================================
     # --- 🎛️ 기간 조회 및 필터 설정 ---
     # ==========================================================
-    # 1. 기존 상세 조회 월 선택 (상단 요약 카드용)
-    sel_month = st.sidebar.selectbox("📅 상세 조회 월 선택", month_list)
+    # 1. 당월 조회 섹션
+    st.sidebar.markdown("### 📌 당월")
+    sel_month = st.sidebar.selectbox("상세 조회 월 선택", month_list)
 
     # 🔥 최신 월(진행 중인 월)인 경우, 마지막 데이터 날짜 추출 로직
     title_suffix = ""
@@ -237,9 +238,10 @@ else:
             latest_date = max(max_dates)
             title_suffix = f"(~{latest_date.month}/{latest_date.day}까지)"
 
-    # 2. 신규 다중 기간 검색 슬라이더 (트렌드 차트용)
+    # 2. 누계 조회 섹션 (트렌드 차트용)
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📈 트렌드 차트 기간 설정")
+    st.sidebar.markdown("### 📈 누계")
+    st.sidebar.subheader("트렌드 차트 기간 설정")
     
     # 기본값 설정: 최근 6개월 (데이터가 6개월 미만이면 전체)
     default_start = CHRONOLOGICAL_MONTHS[-6] if len(CHRONOLOGICAL_MONTHS) >= 6 else CHRONOLOGICAL_MONTHS[0]
