@@ -48,7 +48,6 @@ def load_data():
                 if c_idx != -1:
                     val = pd.to_numeric(df.iloc[row_idx, c_idx], errors='coerce')
                     val = val if pd.notnull(val) else 0
-                    # ⭐ 금액을 1,000,000으로 나누어 '백만 원' 단위로 변환
                     final_list.append({"사업부": unit, "구분": category, "월": m_label, "금액": val / 1000000})
                 else:
                     final_list.append({"사업부": unit, "구분": category, "월": m_label, "금액": 0})
@@ -59,6 +58,13 @@ try:
     df_plot = load_data()
     month_order = ["25.01", "25.02", "25.03", "25.04", "25.05", "25.06", "25.07", "25.08", "25.09", "25.10", "25.11", "25.12", "26.01", "26.02"]
     unit_order = ["온리프", "르샤인", "오블리브"]
+    
+    # ⭐ 지정하신 색상 맵 적용
+    custom_colors = {
+        "온리프": "#1f77b4",  # 기존 블루 유지
+        "르샤인": "#006400",  # 진한 초록색 (DarkGreen)
+        "오블리브": "#8B4513" # 갈색 (SaddleBrown)
+    }
 
     if not df_plot.empty:
         # 1. 매출 추이 그래프
@@ -68,9 +74,9 @@ try:
                           category_orders={"월": month_order, "사업부": unit_order}, 
                           markers=True,
                           labels={"금액": "매출액 (백만 원)"},
-                          color_discrete_map={"온리프": "#1f77b4", "르샤인": "#ff7f0e", "오블리브": "#2ca02c"})
+                          color_discrete_map=custom_colors)
         fig_rev.update_xaxes(type='category')
-        fig_rev.update_layout(yaxis_tickformat=",d") # 천 단위 콤마
+        fig_rev.update_layout(yaxis_tickformat=",d")
         st.plotly_chart(fig_rev, use_container_width=True)
 
         st.divider()
@@ -82,7 +88,7 @@ try:
                             barmode="group", 
                             category_orders={"월": month_order, "사업부": unit_order},
                             labels={"금액": "영업이익 (백만 원)"},
-                            color_discrete_map={"온리프": "#1f77b4", "르샤인": "#ff7f0e", "오블리브": "#2ca02c"})
+                            color_discrete_map=custom_colors)
         fig_profit.update_xaxes(type='category')
         fig_profit.add_hline(y=0, line_dash="dash", line_color="black")
         st.plotly_chart(fig_profit, use_container_width=True)
