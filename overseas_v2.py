@@ -34,6 +34,16 @@ div[data-baseweb="slider"] div[data-testid="stTickBar"] > div {{
 div[data-baseweb="slider"] div[aria-hidden="true"] {{
   background-color: {SLIDER_BLUE} !important;
 }}
+/* BaseWeb track/fill (월~월을 잇는 활성 구간) */
+div[data-baseweb="slider"] div[data-baseweb="track"] > div {{
+  background-color: {SLIDER_BLUE} !important;
+}}
+div[data-baseweb="slider"] div[data-baseweb="track"] div {{
+  background-color: {SLIDER_BLUE} !important;
+}}
+div[data-baseweb="slider"] div[data-baseweb="fill"] {{
+  background-color: {SLIDER_BLUE} !important;
+}}
 /* Track가 인라인 style로 빨간색 지정되는 경우 강제 덮어쓰기 */
 div[data-baseweb="slider"] div[style*="background-color: rgb(255"] {{
   background-color: {SLIDER_BLUE} !important;
