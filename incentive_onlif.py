@@ -39,6 +39,8 @@ if not selected_months:
     st.stop()
 
 df_filtered = df[df["월"].isin(selected_months)].copy()
+latest_month = max(selected_months, key=lambda m: month_order.index(m))
+df_current = df[df["월"] == latest_month].copy()
 
 # 3. 상단 핵심 지표 (KPI)
 st.subheader("📌 핵심 성과 지표")
@@ -71,32 +73,39 @@ for i, row in person_df.iterrows():
         st.write(f"**{row['성명']}**")
         st.write(f"{row['인센티브']:,}원")
 
-st.write("") # 간격 조절
+st.write("")  # 간격 조절
 
-# 5. 시각화 차트
+# 5. 시각화 차트 (당월)
 c1, c2 = st.columns(2)
 
 with c1:
-    st.subheader("📅 월별 인센티브 추이")
-    monthly_inc = (
-        df_filtered.groupby(["월", "성명"], as_index=False)["인센티브"]
+    st.subheader(f"📅 당월 인센티브 구성 ({latest_month})")
+    current_stack = (
+        df_current.groupby(["월", "성명"], as_index=False)["인센티브"]
         .sum()
     )
     fig1 = px.bar(
-        monthly_inc,
+        current_stack,
         x="월",
         y="인센티브",
         color="성명",
         category_orders={"성명": name_order},
         color_discrete_map=color_map,
     )
+    current_total_incentive = float(df_current["인센티브"].sum())
     fig1.update_layout(height=380, bargap=0.45, barmode="stack")
+    fig1.update_yaxes(range=[0, current_total_incentive * 1.1 if current_total_incentive else 1])
     st.plotly_chart(fig1, use_container_width=True)
 
 with c2:
-    st.subheader("📊 개인별 누적 인센티브 합계")
+    st.subheader(f"📊 당월 개인별 인센티브 ({latest_month})")
+    current_person_df = (
+        df_current.groupby("성명", as_index=False)["인센티브"]
+        .sum()
+        .sort_values(by="인센티브", ascending=False)
+    )
     fig2 = px.bar(
-        person_df,
+        current_person_df,
         x="성명",
         y="인센티브",
         text_auto=',.0f',
@@ -105,9 +114,24 @@ with c2:
         color_discrete_map=color_map,
     )
     fig2.update_layout(height=380)
+    fig2.update_yaxes(range=[0, current_total_incentive * 1.1 if current_total_incentive else 1])
     st.plotly_chart(fig2, use_container_width=True)
 
-# 6. 상세 데이터 테이블
+# 6. 누적 시각화 (선택 기간)
+st.subheader("📈 누적 개인별 인센티브 합계 (선택 기간)")
+fig3 = px.bar(
+    person_df,
+    x="성명",
+    y="인센티브",
+    text_auto=',.0f',
+    color="성명",
+    category_orders={"성명": name_order},
+    color_discrete_map=color_map,
+)
+fig3.update_layout(height=360)
+st.plotly_chart(fig3, use_container_width=True)
+
+# 7. 상세 데이터 테이블
 st.subheader("🔍 상세 내역")
 st.dataframe(
     df_filtered.style.format({"실매출액": "{:,}", "인센티브": "{:,}"}),
