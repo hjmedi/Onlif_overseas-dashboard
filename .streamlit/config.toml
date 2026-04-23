@@ -1,0 +1,4 @@
+[theme]
+# Slider/select_slider active track color follows Streamlit primaryColor.
+primaryColor = "#1f77b4"
+
