@@ -200,9 +200,9 @@ else:
     # --- 메뉴 1: 온리프 해외매출 전체 ---
     # ==========================================================
     if menu == "🌐 온리프 해외매출 전체":
-        # 🔥 타이틀에 title_suffix 추가 (primary 파란 대신 빨간색)
+        # 🔥 타이틀에 title_suffix 추가
         st.markdown(
-            f"<h1 style='color: red;'>🌐 {sel_month} 온리프 해외매출 전체 {title_suffix}</h1>",
+            f"<h1 style='color: #000000;'>🌐 {sel_month} 온리프 해외매출 전체 {title_suffix}</h1>",
             unsafe_allow_html=True,
         )
         
