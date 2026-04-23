@@ -8,20 +8,30 @@ from io import StringIO
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 해외 매출 통합 관리", layout="wide")
 
-# 🔧 Sidebar select_slider(및 slider) 포인트 컬러를 파란색으로 고정
+# 🔧 Sidebar select_slider(및 slider) 스타일: 트랙/핸들/연월 라벨까지 파란색으로 고정
 SLIDER_BLUE = "#1f77b4"
 st.markdown(
     f"""
 <style>
 /* Streamlit slider/select_slider uses BaseWeb Slider internally */
+
+/* 1) Thumb(핸들) */
 div[data-baseweb="slider"] div[role="slider"] {{
-  background-color: {SLIDER_BLUE} !important; /* thumb */
+  background-color: {SLIDER_BLUE} !important;
 }}
+
+/* 2) Track(선) - 버전별 DOM 차이를 대비해 범용 선택자 여러 개 적용 */
 div[data-baseweb="slider"] div[data-testid="stTickBar"] > div {{
-  background-color: {SLIDER_BLUE} !important; /* active track segment (varies by version) */
+  background-color: {SLIDER_BLUE} !important;
 }}
-div[data-baseweb="slider"] div {{
-  --slider-color: {SLIDER_BLUE};
+div[data-baseweb="slider"] div[aria-hidden="true"] {{
+  background-color: {SLIDER_BLUE} !important;
+}}
+
+/* 3) 연/월 표시 텍스트(눈금 라벨) */
+div[data-baseweb="slider"] span,
+div[data-baseweb="slider"] p {{
+  color: {SLIDER_BLUE} !important;
 }}
 </style>
 """,
