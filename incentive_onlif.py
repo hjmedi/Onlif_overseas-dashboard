@@ -60,6 +60,9 @@ person_df = (
     .sort_values(by="인센티브", ascending=False)
     .reset_index()
 )
+name_order = person_df["성명"].tolist()
+palette = px.colors.qualitative.Plotly
+color_map = {name: palette[i % len(palette)] for i, name in enumerate(name_order)}
 
 # 개인별 지표 카드 표시
 cols = st.columns(len(person_df))
@@ -75,15 +78,32 @@ c1, c2 = st.columns(2)
 
 with c1:
     st.subheader("📅 월별 인센티브 추이")
-    monthly_inc = df_filtered.groupby("월")["인센티브"].sum().reset_index()
-    fig1 = px.bar(monthly_inc, x="월", y="인센티브", text_auto=',.0f', color_discrete_sequence=['#1f77b4'])
-    fig1.update_traces(width=0.45)
-    fig1.update_layout(height=380, bargap=0.45)
+    monthly_inc = (
+        df_filtered.groupby(["월", "성명"], as_index=False)["인센티브"]
+        .sum()
+    )
+    fig1 = px.bar(
+        monthly_inc,
+        x="월",
+        y="인센티브",
+        color="성명",
+        category_orders={"성명": name_order},
+        color_discrete_map=color_map,
+    )
+    fig1.update_layout(height=380, bargap=0.45, barmode="stack")
     st.plotly_chart(fig1, use_container_width=True)
 
 with c2:
     st.subheader("📊 개인별 누적 인센티브 합계")
-    fig2 = px.bar(person_df, x="성명", y="인센티브", text_auto=',.0f', color="성명")
+    fig2 = px.bar(
+        person_df,
+        x="성명",
+        y="인센티브",
+        text_auto=',.0f',
+        color="성명",
+        category_orders={"성명": name_order},
+        color_discrete_map=color_map,
+    )
     fig2.update_layout(height=380)
     st.plotly_chart(fig2, use_container_width=True)
 
