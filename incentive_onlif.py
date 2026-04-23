@@ -31,11 +31,16 @@ if not available_months:
     st.error("월 데이터가 없습니다.")
     st.stop()
 
-start_month, end_month = st.select_slider(
-    "조회할 기간(시작월 - 종료월)을 선택하세요",
-    options=available_months,
-    value=(available_months[0], available_months[-1]),
-)
+with st.sidebar:
+    st.markdown("### 📌 당월")
+    st.caption("아래 누계 기간의 마지막 월이 당월로 자동 설정됩니다.")
+    st.markdown("---")
+    st.markdown("### 📈 누계")
+    start_month, end_month = st.select_slider(
+        "조회할 기간(시작월 - 종료월)을 선택하세요",
+        options=available_months,
+        value=(available_months[0], available_months[-1]),
+    )
 
 start_idx = available_months.index(start_month)
 end_idx = available_months.index(end_month)
