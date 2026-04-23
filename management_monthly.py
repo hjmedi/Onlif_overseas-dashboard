@@ -18,6 +18,7 @@ def load_bu_data(selected_bu):
     df = pd.read_excel(file_name, sheet_name=config["sheet"], header=None)
     
     header_data = df.iloc[config["header_row"]]
+    # 엑셀 데이터 순서대로 모든 월 리스트 생성
     months_dict = {"25.01": "2501", "25.02": "2502", "25.03": "2503", "25.04": "2504", "25.05": "2505", "25.06": "2506", 
                    "25.07": "2507", "25.08": "2508", "25.09": "2509", "25.10": "2510", "25.11": "2511", "25.12": "2512", 
                    "26.01": "2601", "26.02": "2602"}
@@ -37,9 +38,28 @@ selected_main_bu = st.sidebar.selectbox("🏢 대상 BU 선택", ["온리프 BU"
 try:
     df, col_map = load_bu_data(selected_main_bu)
     all_months = list(col_map.keys())
-    selected_months = st.sidebar.multiselect("📅 조회 기간 (월)", all_months, default=all_months)
 
-    # 행 번호 매핑 설정
+    # --- 기간 선택 슬라이더 (이미지 형태 반영) ---
+    st.sidebar.markdown("### 📈 트렌드 차트 기간 설정")
+    st.sidebar.write("조회할 기간(시작월 - 종료월)을 선택하세요")
+    
+    if all_months:
+        # 슬라이더로 시작월과 종료월 구간 선택
+        start_m, end_m = st.sidebar.select_slider(
+            "기간 선택",
+            options=all_months,
+            value=(all_months[0], all_months[-1]),
+            label_visibility="collapsed" # 레이블은 위쪽 markdown으로 대체
+        )
+        
+        # 선택된 구간 사이의 모든 월 추출
+        start_idx = all_months.index(start_m)
+        end_idx = all_months.index(end_m)
+        selected_months = all_months[start_idx : end_idx + 1]
+    else:
+        selected_months = []
+
+    # 행 번호 매핑 설정 (기존과 동일)
     if selected_main_bu == "온리프 BU":
         row_mapping = {
             "📊 온리프 BU 전체 (합계)": {"매출": 25-1, "영업이익": 52-1},
@@ -59,64 +79,47 @@ try:
             "🤝 오블리브앤파트너스 (법인)": {"매출": 130-1, "영업이익": 163-1}
         }
 
-    # 메인 타이틀
+    # 메인 화면
     st.title(f"🚀 {selected_main_bu} 통합 경영 리포트")
-    st.info(f"조회 기간: {selected_months[0]} ~ {selected_months[-1]} (단위: 백만 원)")
-
+    
     if not selected_months:
-        st.warning("왼쪽 필터에서 조회할 월을 선택해 주세요.")
+        st.warning("조회 가능한 월 데이터가 없습니다.")
     else:
-        # 색상 테마
+        st.info(f"📅 조회 기간: {start_m} ~ {end_m} (단위: 백만 원)")
+        
         color_map = {"온리프 BU": "#1f77b4", "르샤인 BU": "#006400", "오블리브 BU": "#8B4513"}
         theme_color = color_map.get(selected_main_bu, "#31333F")
 
-        # 각 구분별로 순차적으로 그래프 생성
         for section_title, rows in row_mapping.items():
             st.markdown(f"## {section_title}")
             
-            # 데이터 추출
             sales_vals = [pd.to_numeric(df.iloc[rows["매출"], col_map[m]], errors='coerce') / 1000000 for m in selected_months]
             profit_vals = [pd.to_numeric(df.iloc[rows["영업이익"], col_map[m]], errors='coerce') / 1000000 for m in selected_months]
             
-            # 콤보 그래프 생성 (매출: 꺾은선, 영업이익: 막대)
             fig = go.Figure()
-
-            # 영업이익 막대그래프
+            # 영업이익 (막대)
             fig.add_trace(go.Bar(
-                x=selected_months,
-                y=profit_vals,
-                name="영업이익",
-                marker_color=theme_color,
-                opacity=0.6,
-                text=[f"{v:,.0f}" for v in profit_vals],
-                textposition="outside"
+                x=selected_months, y=profit_vals, name="영업이익",
+                marker_color=theme_color, opacity=0.6,
+                text=[f"{v:,.0f}" for v in profit_vals], textposition="outside"
             ))
-
-            # 매출 꺾은선그래프
+            # 매출 (꺾은선)
             fig.add_trace(go.Scatter(
-                x=selected_months,
-                y=sales_vals,
-                name="매출",
-                mode="lines+markers+text",
-                line=dict(color="#FF4B4B", width=3),
-                text=[f"{v:,.0f}" for v in sales_vals],
-                textposition="top center"
+                x=selected_months, y=sales_vals, name="매출",
+                mode="lines+markers+text", line=dict(color="#FF4B4B", width=3),
+                text=[f"{v:,.0f}" for v in sales_vals], textposition="top center"
             ))
 
             fig.update_layout(
-                height=500,
-                margin=dict(l=20, r=20, t=30, b=20),
+                height=500, margin=dict(l=20, r=20, t=30, b=20),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 yaxis=dict(title="금액 (백만 원)", tickformat=",d"),
                 xaxis=dict(type='category'),
                 hovermode="x unified"
             )
-            
-            # 기준선(0) 추가
             fig.add_hline(y=0, line_dash="dash", line_color="black")
-            
             st.plotly_chart(fig, use_container_width=True)
             st.divider()
 
 except Exception as e:
-    st.error(f"데이터 로딩 중 오류가 발생했습니다: {e}")
+    st.error(f"오류가 발생했습니다: {e}")
