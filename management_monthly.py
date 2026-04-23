@@ -5,11 +5,22 @@ import plotly.express as px
 # 1. 페이지 설정
 st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout="wide")
 
-# 2. 데이터 로드 함수
+# 2. 데이터 로드 함수 (BU 선택에 따라 시트를 다르게 로드)
 @st.cache_data
-def load_full_data():
+def load_bu_data(selected_bu):
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
-    df = pd.read_excel(file_name, sheet_name="통합_경영레포트")
+    
+    # BU별 시트 이름 매핑
+    sheet_mapping = {
+        "온리프 BU": "온리프_실적",
+        "르샤인 BU": "르샤인_실적",
+        "오블리브 BU": "오블리브(송도)_실적"
+    }
+    
+    target_sheet = sheet_mapping.get(selected_bu)
+    
+    # 해당 시트 로드
+    df = pd.read_excel(file_name, sheet_name=target_sheet)
     
     # 헤더 행(index 3)에서 월 정보 추출
     header_row = df.iloc[3]
@@ -25,64 +36,46 @@ def load_full_data():
             if str(float(m_val)) in str(cell):
                 col_map[m_label] = i
                 break
-    
-    # 사용자님께서 말씀하신 'BU 합계' 개념을 반영한 매칭 테이블
-    # 엑셀의 행 이름과 100% 매칭되도록 구성
-    mapping = {
-        "온리프 BU": {
-            "전체 (BU 합계)": {"매출": "온리프 BU (병원+앤파트너스) 매출", "영업이익": "온리프 BU (병원+앤파트너스) 영업이익"},
-            "온리프 성형외과": {"매출": "온리프의원 매출", "영업이익": "온리프의원 영업이익"},
-            "온리프앤파트너스": {"매출": "온리프앤파트너스 매출", "영업이익": "온리프앤파트너스 영업이익"}
-        },
-        "르샤인 BU": {
-            "전체 (BU 합계)": {"매출": "르샤인 BU (병원+앤파트너스) 매출", "영업이익": "르샤인 BU (병원+앤파트너스) 영업이익"},
-            "르샤인 성형외과": {"매출": "르샤인의원 매출", "영업이익": "르샤인의원 영업이익"},
-            "르샤인앤파트너스": {"매출": "르샤인앤파트너스 매출", "영업이익": "르샤인앤파트너스 영업이익"}
-        },
-        "오블리브 BU": {
-            "전체 (BU 합계)": {"매출": "오블리브 BU (병원+앤파트너스) 매출", "영업이익": "오블리브 BU (병원+앤파트너스) 영업이익"},
-            "오블리브 성형외과": {"매출": "오블리브(송도) 매출", "영업이익": "오블리브(송도) 영업이익"},
-            "오블리브앤파트너스": {"매출": "오블리브앤파트너스(송도) 매출", "영업이익": "오블리브앤파트너스(송도) 영업이익"}
-        }
-    }
-    
-    return df, col_map, mapping
+                
+    return df, col_map
+
+# 3. 사이드바 구성
+st.sidebar.header("🔍 경영 실적 필터")
+
+# BU 선택 (가장 먼저 선택해야 시트를 읽어옴)
+selected_main_bu = st.sidebar.selectbox("🏢 대상 BU", ["온리프 BU", "르샤인 BU", "오블리브 BU"])
 
 try:
-    df, col_map, mapping = load_full_data()
-    # 검색용 텍스트 정제
+    # 선택된 BU에 맞는 시트 로드
+    df, col_map = load_bu_data(selected_main_bu)
     name_col = df.iloc[:, 3].astype(str).str.replace(" ", "").str.replace("\n", "")
-    
-    # --- 사이드바 ---
-    st.sidebar.header("🔍 경영 실적 필터")
-    
-    # 1. 월 선택
+
+    # 조회 월 선택
     all_months = list(col_map.keys())
     selected_months = st.sidebar.multiselect("📅 조회 기간 (월)", all_months, default=all_months)
     
     st.sidebar.divider()
-    
-    # 2. BU 선택
-    selected_main_bu = st.sidebar.selectbox("🏢 대상 BU", list(mapping.keys()))
-    
-    # 3. 상세 구분 선택
-    sub_options = list(mapping[selected_main_bu].keys())
-    selected_sub = st.sidebar.selectbox("📍 상세 실적 구분", sub_options)
-    
+
+    # 상세 구분 키워드 설정 (시트 내에서 행을 찾기 위한 키워드)
+    sub_mapping = {
+        "전체 (BU 합계)": "BU(병원+앤파트너스)",
+        "성형외과 (의원)": "의원",
+        "앤파트너스 (법인)": "파트너스"
+    }
+    selected_sub = st.sidebar.selectbox("📍 상세 실적 구분", list(sub_mapping.keys()))
+
     # --- 데이터 추출 ---
     if not selected_months:
         st.warning("왼쪽 필터에서 조회할 월을 선택해 주세요.")
     else:
-        target_rows = mapping[selected_main_bu][selected_sub]
-        final_data = []
+        # '매출'과 '영업이익' 행 찾기
+        categories = ["매출", "영업이익"]
+        sub_keyword = sub_mapping[selected_sub]
         
-        for category, row_name in target_rows.items():
-            # 특수기호 및 공백 제거 후 검색
-            search_key = row_name.replace(" ", "").replace("(", "").replace(")", "").replace("+", "")
-            # 엑셀 데이터의 행 이름도 동일하게 정제하여 비교
-            clean_name_col = name_col.str.replace("(", "").str.replace(")", "").str.replace("+", "")
-            
-            match_idx = clean_name_col[clean_name_col.str.contains(search_key, na=False)].index
+        final_data = []
+        for cat in categories:
+            # 예: '의원'과 '매출'이 동시에 포함된 행 찾기
+            match_idx = name_col[name_col.str.contains(sub_keyword, na=False) & name_col.str.contains(cat, na=False)].index
             
             if not match_idx.empty:
                 row_idx = match_idx[0]
@@ -90,49 +83,41 @@ try:
                     c_idx = col_map[m]
                     val = pd.to_numeric(df.iloc[row_idx, c_idx], errors='coerce')
                     val = val if pd.notnull(val) else 0
-                    final_data.append({"월": m, "구분": category, "금액": val / 1000000})
-        
+                    final_data.append({"월": m, "구분": cat, "금액": val / 1000000})
+
         plot_df = pd.DataFrame(final_data)
-        
+
         # --- 메인 화면 ---
         st.title(f"📊 {selected_main_bu} 실적 리포트")
-        st.markdown(f"### `{selected_sub}` 실적 분석")
-        st.caption(f"조회 기간: {selected_months[0]} ~ {selected_months[-1]} (단위: 백만 원)")
+        st.markdown(f"### `{selected_sub}` 실적 분석 (시트: {selected_main_bu.split()[0]}_실적)")
         
         if not plot_df.empty:
-            # 색상 테마 설정
-            color_map = {"온리프 BU": "#1f77b4", "르샤인 BU": "#006400", "오블리브 BU": "#8B4513"}
-            theme_color = color_map[selected_main_bu]
+            color_map = {"온리프 BU": "#1f77b4", "르샤인 BU": "#006400", "오글리브 BU": "#8B4513"}
+            theme_color = color_map.get(selected_main_bu, "#31333F")
 
             col1, col2 = st.columns(2)
-            
             with col1:
-                st.subheader("📈 매출 추이")
+                st.subheader("📈 매출 추이 (백만 원)")
                 rev_df = plot_df[plot_df["구분"] == "매출"]
-                fig_rev = px.line(rev_df, x="월", y="금액", markers=True, 
-                                  text=rev_df["금액"].apply(lambda x: f"{x:,.0f}"))
+                fig_rev = px.line(rev_df, x="월", y="금액", markers=True, text=rev_df["금액"].apply(lambda x: f"{x:,.0f}"))
                 fig_rev.update_traces(line_color=theme_color, textposition="top center")
                 fig_rev.update_xaxes(type='category')
                 st.plotly_chart(fig_rev, use_container_width=True)
                 
             with col2:
-                st.subheader("💰 영업이익 추이")
+                st.subheader("💰 영업이익 추이 (백만 원)")
                 profit_df = plot_df[plot_df["구분"] == "영업이익"]
-                fig_profit = px.bar(profit_df, x="월", y="금액", 
-                                    text=profit_df["금액"].apply(lambda x: f"{x:,.0f}"))
+                fig_profit = px.bar(profit_df, x="월", y="금액", text=profit_df["금액"].apply(lambda x: f"{x:,.0f}"))
                 fig_profit.update_traces(marker_color=theme_color, textposition="outside")
                 fig_profit.update_xaxes(type='category')
                 fig_profit.add_hline(y=0, line_dash="dash", line_color="black")
                 st.plotly_chart(fig_profit, use_container_width=True)
 
             st.divider()
-            
-            # 상세 표
-            with st.expander("🔍 데이터 테이블로 확인하기"):
-                pivot_df = plot_df.pivot_table(index="구분", columns="월", values="금액")
-                st.dataframe(pivot_df.style.format("{:,.0f}"))
+            with st.expander("🔍 데이터 테이블 확인"):
+                st.dataframe(plot_df.pivot_table(index="구분", columns="월", values="금액").style.format("{:,.0f}"))
         else:
-            st.error("해당 항목의 데이터를 엑셀에서 찾을 수 없습니다. 행 이름을 확인해 주세요.")
+            st.error(f"'{selected_sub}'에 해당하는 '{categories}' 데이터를 시트에서 찾을 수 없습니다. 엑셀의 행 이름을 확인해 주세요.")
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
