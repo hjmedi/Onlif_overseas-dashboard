@@ -47,12 +47,12 @@ try:
     
     st.sidebar.divider()
 
-    # --- 사용자 제공 행 번호 정밀 매핑 (Excel 행 번호 - 1) ---
+    # --- 사용자 제공 최신 행 번호 매핑 (Excel 행 번호 - 1) ---
     if selected_main_bu == "온리프 BU":
         row_mapping = {
             "전체 (BU 합계)": {"매출": 25-1, "영업이익": 52-1},
             "온리프 성형외과": {"매출": 77-1, "영업이익": 116-1},
-            "온리프앤파트너스": {"매출": 130-1, "영업이익": 163-1}
+            "온리프앤파트너스": {"매출": 121-1, "영업이익": 155-1} # 최신 수정 반영
         }
     elif selected_main_bu == "르샤인 BU":
         row_mapping = {
@@ -81,22 +81,20 @@ try:
                     c_idx = col_map[m]
                     val = pd.to_numeric(df.iloc[row_idx, c_idx], errors='coerce')
                     val = val if pd.notnull(val) else 0
-                    # 백만 원 단위로 변환
                     final_data.append({"월": m, "구분": category, "금액": val / 1000000})
 
         plot_df = pd.DataFrame(final_data)
 
-        # --- 메인 화면 대시보드 ---
+        # --- 메인 화면 출력 ---
         st.title(f"📊 {selected_main_bu} 실적 리포트")
         st.markdown(f"### `{selected_sub}` 실적 분석")
         
         if not plot_df.empty:
-            # BU별 테마 색상
             color_map = {"온리프 BU": "#1f77b4", "르샤인 BU": "#006400", "오블리브 BU": "#8B4513"}
             theme_color = color_map.get(selected_main_bu, "#31333F")
 
-            col1, col2 = st.columns(2)
-            with col1:
+            c1, c2 = st.columns(2)
+            with c1:
                 st.subheader("📈 매출 추이 (백만 원)")
                 rev_df = plot_df[plot_df["구분"] == "매출"]
                 fig_rev = px.line(rev_df, x="월", y="금액", markers=True, 
@@ -105,7 +103,7 @@ try:
                 fig_rev.update_xaxes(type='category')
                 st.plotly_chart(fig_rev, use_container_width=True)
                 
-            with col2:
+            with c2:
                 st.subheader("💰 영업이익 추이 (백만 원)")
                 profit_df = plot_df[plot_df["구분"] == "영업이익"]
                 fig_profit = px.bar(profit_df, x="월", y="금액", 
@@ -119,7 +117,7 @@ try:
             with st.expander("📝 상세 데이터 확인 (단위: 백만 원)"):
                 st.dataframe(plot_df.pivot_table(index="구분", columns="월", values="금액").style.format("{:,.0f}"))
         else:
-            st.error("데이터를 가져오는 데 실패했습니다. 행 번호를 다시 확인해 주세요.")
+            st.error("데이터를 추출하지 못했습니다. 행 번호를 다시 확인해 주세요.")
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
