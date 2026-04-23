@@ -5,18 +5,22 @@ import plotly.express as px
 # 1. 페이지 설정
 st.set_page_config(page_title="온리프 인센티브 대시보드", layout="wide")
 
-st.title("온리프 해외사업본부 인센티브 리포트")
+st.title("💰 해외사업본부 1분기 인센티브 리포트")
+st.info("1월 ~ 3월 귀속분 통합 실적 및 개인별 성과 지표입니다.")
 
-# 2. 데이터 정리
+# 2. 데이터 정리 (기안서 기반)
 data = [
+    # 1월 [cite: 10, 31]
     {"월": "1월", "성명": "왕세신", "권역": "총괄", "실매출액": 130597270, "인센티브": 1958960},
     {"월": "1월", "성명": "채령", "권역": "중화권", "실매출액": 79944623, "인센티브": 399730},
     {"월": "1월", "성명": "단비", "권역": "영미권", "실매출액": 13912755, "인센티브": 69570},
     {"월": "1월", "성명": "장원희", "권역": "일본", "실매출액": 13137000, "인센티브": 131370},
+    # 2월 [cite: 41, 64]
     {"월": "2월", "성명": "왕세신", "권역": "총괄", "실매출액": 84637449, "인센티브": 1269570},
     {"월": "2월", "성명": "채령", "권역": "중화권", "실매출액": 66877831, "인센티브": 668780},
     {"월": "2월", "성명": "단비", "권역": "영미권", "실매출액": 12383059, "인센티브": 61920},
     {"월": "2월", "성명": "장원희", "권역": "일본", "실매출액": 9493900, "인센티브": 94940},
+    # 3월 [cite: 77, 97]
     {"월": "3월", "성명": "왕세신", "권역": "총괄", "실매출액": 121089732, "인센티브": 1816350},
     {"월": "3월", "성명": "김홍실", "권역": "중화권", "실매출액": 33134045, "인센티브": 275850},
     {"월": "3월", "성명": "단비", "권역": "영미권", "실매출액": 50183723, "인센티브": 250920},
@@ -24,155 +28,46 @@ data = [
 ]
 
 df = pd.DataFrame(data)
-# 상세표 확장 컬럼 계산
-if "총매출액" in df.columns and "유치수수료" in df.columns:
-    df["실매출액"] = df["총매출액"] - df["유치수수료"]
-elif "실매출액" in df.columns and "유치수수료" in df.columns:
-    df["총매출액"] = df["실매출액"] + df["유치수수료"]
-elif "실매출액" in df.columns:
-    # 원본에 총매출/유치수수료가 없으면 실매출 기준으로 표시만 유지
-    df["총매출액"] = df["실매출액"]
-    df["유치수수료"] = 0
-else:
-    st.error("필수 컬럼이 없습니다. (실매출액 또는 총매출액/유치수수료)")
-    st.stop()
 
-df["유치수수료율"] = (df["유치수수료"] / df["총매출액"]).fillna(0)
-df["인센티브율"] = (df["인센티브"] / df["실매출액"]).fillna(0)
-month_order = ["1월", "2월", "3월"]
-available_months = [m for m in month_order if m in df["월"].unique()]
-
-if not available_months:
-    st.error("월 데이터가 없습니다.")
-    st.stop()
-
-with st.sidebar:
-    st.markdown("### 📌 당월")
-    st.caption("누계 기간 내에서 당월을 직접 선택할 수 있습니다.")
-    current_month_placeholder = st.empty()
-    st.markdown("---")
-    st.markdown("### 📈 누계")
-    start_month, end_month = st.select_slider(
-        "조회할 기간(시작월 - 종료월)을 선택하세요",
-        options=available_months,
-        value=(available_months[0], available_months[-1]),
-    )
-
-start_idx = available_months.index(start_month)
-end_idx = available_months.index(end_month)
-selected_months = available_months[start_idx : end_idx + 1]
-
-df_filtered = df[df["월"].isin(selected_months)].copy()
-latest_month = selected_months[-1]
-sel_month = current_month_placeholder.selectbox(
-    "당월 선택",
-    options=selected_months,
-    index=len(selected_months) - 1,
-)
-df_current = df[df["월"] == sel_month].copy()
-
-# 3. 상단 핵심 지표 (KPI)
-st.subheader("📌 핵심 성과 지표")
+# 3. 상단 핵심 지표
+st.subheader("📌 1분기 누적 성과")
 m1, m2, m3 = st.columns(3)
 with m1:
-    st.metric("선택 기간 총 실매출액", f"{df_filtered['실매출액'].sum():,}원")
+    st.metric("총 실매출액", f"{df['실매출액'].sum():,}원") [cite: 10, 41, 77]
 with m2:
-    st.metric("선택 기간 총 인센티브", f"{df_filtered['인센티브'].sum():,}원")
+    st.metric("총 인센티브", f"{df['인센티브'].sum():,}원") [cite: 10, 41, 77]
 with m3:
-    st.metric("인센티브 대상자", f"{df_filtered['성명'].nunique()}명")
+    st.metric("평균 인센티브율", f"{(df['인센티브'].sum() / df['실매출액'].sum() * 100):.2f}%")
 
 st.divider()
 
-# 4. 개인별 인센티브 분석 (새로 추가된 섹션)
-st.subheader("👤 개인별 누적 성과")
-person_df = (
-    df_filtered.groupby("성명")[["실매출액", "인센티브"]]
-    .sum()
-    .sort_values(by="인센티브", ascending=False)
-    .reset_index()
-)
-name_order = person_df["성명"].tolist()
-palette = px.colors.qualitative.Plotly
-color_map = {name: palette[i % len(palette)] for i, name in enumerate(name_order)}
+# 4. 개인별 인센티브 요약 (요청하신 부분)
+st.subheader("👤 개인별 누적 인센티브 현황")
+person_summary = df.groupby("성명")["인센티브"].sum().sort_values(ascending=False).reset_index()
 
-# 개인별 지표 카드 표시
-cols = st.columns(len(person_df))
-for i, row in person_df.iterrows():
+# 깔끔한 카드 형태로 표시
+cols = st.columns(len(person_summary))
+for i, row in person_summary.iterrows():
     with cols[i]:
-        st.write(f"**{row['성명']}**")
-        st.write(f"{row['인센티브']:,}원")
+        st.markdown(f"""
+        <div style="padding:15px; border-radius:10px; background-color:#f0f2f6; text-align:center;">
+            <p style="margin:0; color:#555;">{row['성명']}</p>
+            <h3 style="margin:0; color:#1f77b4;">{row['인센티브']:,}원</h3>
+        </div>
+        """, unsafe_allow_html=True)
 
-st.write("")  # 간격 조절
+st.write("") # 간격
 
-# 5. 시각화 차트 (당월)
+# 5. 차트 분석
 c1, c2 = st.columns(2)
-
 with c1:
-    st.subheader(f"📅 당월 인센티브 구성 ({sel_month})")
-    current_stack = (
-        df_current.groupby(["월", "성명"], as_index=False)["인센티브"]
-        .sum()
-    )
-    fig1 = px.bar(
-        current_stack,
-        x="월",
-        y="인센티브",
-        color="성명",
-        category_orders={"성명": name_order},
-        color_discrete_map=color_map,
-    )
-    current_total_incentive = float(df_current["인센티브"].sum())
-    fig1.update_layout(height=380, bargap=0.45, barmode="stack")
-    fig1.update_yaxes(range=[0, current_total_incentive * 1.1 if current_total_incentive else 1])
-    st.plotly_chart(fig1, use_container_width=True)
-
+    st.subheader("📅 월별 실적 추이")
+    monthly = df.groupby("월")["인센티브"].sum().reset_index()
+    st.plotly_chart(px.line(monthly, x="월", y="인센티브", markers=True), use_container_width=True)
 with c2:
-    st.subheader(f"📊 당월 개인별 인센티브 ({sel_month})")
-    current_person_df = (
-        df_current.groupby("성명", as_index=False)["인센티브"]
-        .sum()
-        .sort_values(by="인센티브", ascending=False)
-    )
-    fig2 = px.bar(
-        current_person_df,
-        x="성명",
-        y="인센티브",
-        text_auto=',.0f',
-        color="성명",
-        category_orders={"성명": name_order},
-        color_discrete_map=color_map,
-    )
-    fig2.update_layout(height=380)
-    fig2.update_yaxes(range=[0, current_total_incentive * 1.1 if current_total_incentive else 1])
-    st.plotly_chart(fig2, use_container_width=True)
+    st.subheader("📊 성명별 인센티브 합계")
+    st.plotly_chart(px.bar(person_summary, x="성명", y="인센티브", color="성명", text_auto=',.0f'), use_container_width=True)
 
-# 6. 누적 시각화 (선택 기간)
-st.subheader("📈 누적 개인별 인센티브 합계 (선택 기간)")
-fig3 = px.bar(
-    person_df,
-    x="성명",
-    y="인센티브",
-    text_auto=',.0f',
-    color="성명",
-    category_orders={"성명": name_order},
-    color_discrete_map=color_map,
-)
-fig3.update_layout(height=360)
-st.plotly_chart(fig3, use_container_width=True)
-
-# 7. 상세 데이터 테이블
-st.subheader("🔍 상세 내역")
-detail_cols = ["월", "성명", "권역", "총매출액", "유치수수료", "유치수수료율", "실매출액", "인센티브", "인센티브율"]
-st.dataframe(
-    df_filtered[detail_cols].style.format(
-        {
-            "총매출액": "{:,}",
-            "유치수수료": "{:,}",
-            "유치수수료율": "{:.2%}",
-            "실매출액": "{:,}",
-            "인센티브": "{:,}",
-            "인센티브율": "{:.2%}",
-        }
-    ),
-    use_container_width=True,
-)
+# 6. 상세 테이블
+st.subheader("🔍 상세 지급 내역")
+st.dataframe(df.style.format({"실매출액": "{:,}", "인센티브": "{:,}"}), use_container_width=True)
