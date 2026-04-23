@@ -25,22 +25,41 @@ data = [
 ]
 
 df = pd.DataFrame(data)
+month_order = ["1월", "2월", "3월"]
+available_months = [m for m in month_order if m in df["월"].unique()]
+
+selected_months = st.multiselect(
+    "조회할 월 선택",
+    options=available_months,
+    default=available_months,
+)
+
+if not selected_months:
+    st.warning("최소 1개 이상의 월을 선택해주세요.")
+    st.stop()
+
+df_filtered = df[df["월"].isin(selected_months)].copy()
 
 # 3. 상단 핵심 지표 (KPI)
 st.subheader("📌 핵심 성과 지표")
 m1, m2, m3 = st.columns(3)
 with m1:
-    st.metric("1분기 총 실매출액", f"{df['실매출액'].sum():,}원")
+    st.metric("선택 기간 총 실매출액", f"{df_filtered['실매출액'].sum():,}원")
 with m2:
-    st.metric("1분기 총 인센티브", f"{df['인센티브'].sum():,}원")
+    st.metric("선택 기간 총 인센티브", f"{df_filtered['인센티브'].sum():,}원")
 with m3:
-    st.metric("인센티브 대상자", f"{df['성명'].nunique()}명")
+    st.metric("인센티브 대상자", f"{df_filtered['성명'].nunique()}명")
 
 st.divider()
 
 # 4. 개인별 인센티브 분석 (새로 추가된 섹션)
 st.subheader("👤 개인별 누적 성과")
-person_df = df.groupby("성명")[["실매출액", "인센티브"]].sum().sort_values(by="인센티브", ascending=False).reset_index()
+person_df = (
+    df_filtered.groupby("성명")[["실매출액", "인센티브"]]
+    .sum()
+    .sort_values(by="인센티브", ascending=False)
+    .reset_index()
+)
 
 # 개인별 지표 카드 표시
 cols = st.columns(len(person_df))
@@ -56,7 +75,7 @@ c1, c2 = st.columns(2)
 
 with c1:
     st.subheader("📅 월별 인센티브 추이")
-    monthly_inc = df.groupby("월")["인센티브"].sum().reset_index()
+    monthly_inc = df_filtered.groupby("월")["인센티브"].sum().reset_index()
     fig1 = px.bar(monthly_inc, x="월", y="인센티브", text_auto=',.0f', color_discrete_sequence=['#1f77b4'])
     fig1.update_traces(width=0.45)
     fig1.update_layout(height=380, bargap=0.45)
@@ -65,8 +84,12 @@ with c1:
 with c2:
     st.subheader("📊 개인별 누적 인센티브 합계")
     fig2 = px.bar(person_df, x="성명", y="인센티브", text_auto=',.0f', color="성명")
+    fig2.update_layout(height=380)
     st.plotly_chart(fig2, use_container_width=True)
 
 # 6. 상세 데이터 테이블
 st.subheader("🔍 상세 내역")
-st.dataframe(df.style.format({"실매출액": "{:,}", "인센티브": "{:,}"}), use_container_width=True)
+st.dataframe(
+    df_filtered.style.format({"실매출액": "{:,}", "인센티브": "{:,}"}),
+    use_container_width=True,
+)
