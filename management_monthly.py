@@ -48,9 +48,10 @@ def load_data():
                 if c_idx != -1:
                     val = pd.to_numeric(df.iloc[row_idx, c_idx], errors='coerce')
                     val = val if pd.notnull(val) else 0
-                    final_list.append({"사업부": unit, "구분": category, "월": m_label, "금액": val / 1000000})
+                    # '사업부' 대신 'BU'로 데이터 생성
+                    final_list.append({"BU": unit, "구분": category, "월": m_label, "금액": val / 1000000})
                 else:
-                    final_list.append({"사업부": unit, "구분": category, "월": m_label, "금액": 0})
+                    final_list.append({"BU": unit, "구분": category, "월": m_label, "금액": 0})
             
     return pd.DataFrame(final_list)
 
@@ -59,21 +60,20 @@ try:
     month_order = ["25.01", "25.02", "25.03", "25.04", "25.05", "25.06", "25.07", "25.08", "25.09", "25.10", "25.11", "25.12", "26.01", "26.02"]
     unit_order = ["온리프", "르샤인", "오블리브"]
     
-    # ⭐ 지정하신 색상 맵 적용
     custom_colors = {
-        "온리프": "#1f77b4",  # 기존 블루 유지
-        "르샤인": "#006400",  # 진한 초록색 (DarkGreen)
-        "오블리브": "#8B4513" # 갈색 (SaddleBrown)
+        "온리프": "#1f77b4",
+        "르샤인": "#006400",
+        "오블리브": "#8B4513"
     }
 
     if not df_plot.empty:
         # 1. 매출 추이 그래프
-        st.subheader("📈 사업부별 매출 추이 (단위: 백만 원)")
+        st.subheader("📈 BU별 매출 추이 (단위: 백만 원)")
         rev_df = df_plot[df_plot["구분"] == "매출"]
-        fig_rev = px.line(rev_df, x="월", y="금액", color="사업부", 
-                          category_orders={"월": month_order, "사업부": unit_order}, 
+        fig_rev = px.line(rev_df, x="월", y="금액", color="BU", 
+                          category_orders={"월": month_order, "BU": unit_order}, 
                           markers=True,
-                          labels={"금액": "매출액 (백만 원)"},
+                          labels={"금액": "매출액 (백만 원)", "BU": "Business Unit"},
                           color_discrete_map=custom_colors)
         fig_rev.update_xaxes(type='category')
         fig_rev.update_layout(yaxis_tickformat=",d")
@@ -82,12 +82,12 @@ try:
         st.divider()
 
         # 2. 영업이익 추이 그래프
-        st.subheader("💰 사업부별 영업이익 추이 (단위: 백만 원)")
+        st.subheader("💰 BU별 영업이익 추이 (단위: 백만 원)")
         profit_df = df_plot[df_plot["구분"] == "영업이익"]
-        fig_profit = px.bar(profit_df, x="월", y="금액", color="사업부", 
+        fig_profit = px.bar(profit_df, x="월", y="금액", color="BU", 
                             barmode="group", 
-                            category_orders={"월": month_order, "사업부": unit_order},
-                            labels={"금액": "영업이익 (백만 원)"},
+                            category_orders={"월": month_order, "BU": unit_order},
+                            labels={"금액": "영업이익 (백만 원)", "BU": "Business Unit"},
                             color_discrete_map=custom_colors)
         fig_profit.update_xaxes(type='category')
         fig_profit.add_hline(y=0, line_dash="dash", line_color="black")
@@ -95,7 +95,7 @@ try:
 
         # 3. 데이터 검증 표
         with st.expander("📝 수치 데이터 확인 (단위: 백만 원)"):
-            pivot_df = df_plot.pivot_table(index=["사업부", "구분"], columns="월", values="금액")
+            pivot_df = df_plot.pivot_table(index=["BU", "구분"], columns="월", values="금액")
             pivot_df = pivot_df[month_order]
             st.dataframe(pivot_df.style.format("{:,.0f}"))
             
