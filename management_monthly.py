@@ -54,7 +54,7 @@ def get_val(df, row, col):
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
-# 요약 카드 렌더링 함수 (억 단위 변환 적용)
+# 요약 카드 렌더링 함수 (소수점 첫째 자리 통일)
 def display_metrics(months, sales_list, profit_list):
     if len(sales_list) < 1: return
     curr_s = sales_list[-1]
@@ -66,7 +66,6 @@ def display_metrics(months, sales_list, profit_list):
         prev_p = profit_list[-2]
         prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
         
-        # 차이값 계산 (단위: 억)
         diff_s = (curr_s - prev_s) / 100
         diff_p = (curr_p - prev_p) / 100
         
@@ -77,21 +76,19 @@ def display_metrics(months, sales_list, profit_list):
         delta_s, delta_p, delta_r = None, None, None
 
     m1, m2, m3 = st.columns(3)
-    # 메인 표기 단위를 억(0.0)으로 변경
+    # 모든 메인 수치를 소수점 한 자리(.1f)로 통일
     m1.metric(f"📅 {months[-1]} 매출", f"{curr_s/100:.1f}억", delta_s)
-    m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.2f}억", delta_p) # 영익은 단위가 작을 수 있어 소수점 둘째자리까지
+    m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억", delta_p)
     m3.metric(f"📊 {months[-1]} 이익률", f"{curr_r:.1f}%", delta_r)
 
-# 공통 차트 함수 (차트 내 텍스트도 억 단위로 변경)
+# 공통 차트 함수
 def draw_chart(title, months, s, p, c):
     st.markdown(f"### {title}")
     fig = go.Figure()
-    # 영업이익 막대
     fig.add_trace(go.Bar(
         x=months, y=p, name="영업이익", marker_color=c, opacity=0.6, 
         text=[f"{v/100:.1f}억" for v in p], textposition="outside"
     ))
-    # 매출 꺾은선
     fig.add_trace(go.Scatter(
         x=months, y=s, name="매출", mode="lines+markers+text", line=dict(color="#FF4B4B", width=3), 
         text=[f"{v/100:.1f}억" for v in s], textposition="top center"
