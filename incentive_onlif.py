@@ -24,6 +24,21 @@ data = [
 ]
 
 df = pd.DataFrame(data)
+# 상세표 확장 컬럼 계산
+if "총매출액" in df.columns and "유치수수료" in df.columns:
+    df["실매출액"] = df["총매출액"] - df["유치수수료"]
+elif "실매출액" in df.columns and "유치수수료" in df.columns:
+    df["총매출액"] = df["실매출액"] + df["유치수수료"]
+elif "실매출액" in df.columns:
+    # 원본에 총매출/유치수수료가 없으면 실매출 기준으로 표시만 유지
+    df["총매출액"] = df["실매출액"]
+    df["유치수수료"] = 0
+else:
+    st.error("필수 컬럼이 없습니다. (실매출액 또는 총매출액/유치수수료)")
+    st.stop()
+
+df["유치수수료율"] = (df["유치수수료"] / df["총매출액"]).fillna(0)
+df["인센티브율"] = (df["인센티브"] / df["실매출액"]).fillna(0)
 month_order = ["1월", "2월", "3월"]
 available_months = [m for m in month_order if m in df["월"].unique()]
 
@@ -147,7 +162,17 @@ st.plotly_chart(fig3, use_container_width=True)
 
 # 7. 상세 데이터 테이블
 st.subheader("🔍 상세 내역")
+detail_cols = ["월", "성명", "권역", "총매출액", "유치수수료", "유치수수료율", "실매출액", "인센티브", "인센티브율"]
 st.dataframe(
-    df_filtered.style.format({"실매출액": "{:,}", "인센티브": "{:,}"}),
+    df_filtered[detail_cols].style.format(
+        {
+            "총매출액": "{:,}",
+            "유치수수료": "{:,}",
+            "유치수수료율": "{:.2%}",
+            "실매출액": "{:,}",
+            "인센티브": "{:,}",
+            "인센티브율": "{:.2%}",
+        }
+    ),
     use_container_width=True,
 )
