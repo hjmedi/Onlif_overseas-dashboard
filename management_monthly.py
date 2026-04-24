@@ -85,10 +85,9 @@ def get_val(df, row, col):
     return (v if pd.notnull(v) else 0) / 1000000
 
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
-    st.markdown(f"### {title}") # 1. 제목 먼저 출력
+    st.markdown(f"### {title}") 
     
-    # [수정] 이슈 확인 메뉴를 제목 바로 아래로 이동
-    if use_custom_palette: # 센터별 상세 차트인 경우에만 체크
+    if use_custom_palette:
         item_issues = generate_item_headlines(months, sales_dict)
         if item_issues:
             with st.expander("📌 의원 센터별 주요 변동 이슈 확인"):
@@ -145,13 +144,22 @@ try:
         st.title("🌐 그룹 연결 실적 현황")
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        
         h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
         if h_line: st.success(h_line)
-        display_metrics(sel_months, ts, tp); draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        display_metrics(sel_months, ts, tp)
+        
+        # 수정 1: "그룹 전체 연결 실적" -> "전체 연결"
+        draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        
         st.divider()
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)"); draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
+        
+        # 수정 2: "법인 합산 실적" 헤더 삭제 및 요약 카드 유지
+        display_metrics(sel_months, cs, cp)
+        # 수정 3: "법인 연결 실적 추이" -> "법인 연결(HQ+파트너스)"
+        draw_performance_chart("🏢 법인 연결(HQ+파트너스)", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
@@ -168,7 +176,7 @@ try:
             hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
             draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
         else:
-            draw_performance_chart(f"📊 {k} 전체 실적 추이", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
+            draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
