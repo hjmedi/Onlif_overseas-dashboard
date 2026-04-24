@@ -151,26 +151,24 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
         
-        # [필터 수정] 계정과목명은 정확히 일치해야 함
         target_category = "03.매출원가-의약품비"
         df = df[(df['Category'] == target_category) & (df['Biz'].str.contains(biz_name, na=False))]
         
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
         
-        # [수정 포인트] 거래처명 정규화 (Normalization)
+        # 거래처명 정규화
         def normalize_vendor(name):
-            name = str(name).strip() # 앞뒤 공백 제거
-            if name.startswith('(주)'): name = name[3:].strip() # 앞에 붙은 (주) 제거 후 공백 제거
-            if name.endswith('(주)'): name = name[:-3].strip()  # 뒤에 붙은 (주) 제거 후 공백 제거
+            name = str(name).strip()
+            if name.startswith('(주)'): name = name[3:].strip()
+            if name.endswith('(주)'): name = name[:-3].strip()
             return name
-
         df['Vendor_Clean'] = df['Vendor'].apply(normalize_vendor)
         
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
         
-        # [2] 정제된 거래처명(Vendor_Clean)으로 집계
+        # [2] 거래처별 집계
         curr_df = df[df['Month'] == curr_m].groupby('Vendor_Clean')['Amount'].sum().reset_index()
         prev_df = df[df['Month'] == prev_m].groupby('Vendor_Clean')['Amount'].sum().reset_index()
         
@@ -180,27 +178,28 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         total_curr = df[df['Month'] == curr_m]['Amount'].sum()
         total_prev = df[df['Month'] == prev_m]['Amount'].sum()
         
-        # [3] Top 10 및 요약 데이터 구성
-        top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10).reset_index(drop=True)
+        # [수정 포인트] 당월 금액의 '절댓값' 기준으로 정렬하여 마이너스 큰 금액도 Top 10에 포함
+        merged['Abs_Amount'] = merged['Amount_Curr'].abs()
+        top10 = merged.sort_values(by='Abs_Amount', ascending=False).head(10).reset_index(drop=True)
+        
         top10_curr_sum = top10['Amount_Curr'].sum()
         top10_prev_sum = top10['Amount_Prev'].sum()
         
+        # [3] 요약 데이터 구성
         summary_data = [
             {'Vendor': 'Top 10 합계', 'Amount_Curr': top10_curr_sum, 'Amount_Prev': top10_prev_sum},
             {'Vendor': '의약품비 전체', 'Amount_Curr': total_curr, 'Amount_Prev': total_prev},
             {'Vendor': 'Top 10 비중', 
-             'Amount_Curr': (top10_curr_sum/total_curr*100) if total_curr > 0 else 0, 
-             'Amount_Prev': (top10_prev_sum/total_prev*100) if total_prev > 0 else 0}
+             'Amount_Curr': (top10_curr_sum/total_curr*100) if total_curr != 0 else 0, 
+             'Amount_Prev': (top10_prev_sum/total_prev*100) if total_prev != 0 else 0}
         ]
         
-        # 그래프용 벤더명 (순위 포함)
         graph_vendors = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
-        
         top10_for_table = top10.copy()
         top10_for_table['Vendor'] = graph_vendors
         display_df = pd.concat([top10_for_table, pd.DataFrame(summary_data)], ignore_index=True)
         display_df['Diff'] = display_df['Amount_Curr'] - display_df['Amount_Prev']
-        display_df['Growth'] = display_df.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] > 0 else 0, axis=1)
+        display_df['Growth'] = display_df.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] != 0 else 0, axis=1)
 
         # [4] 단위 변환
         for col in ['Amount_Prev', 'Amount_Curr', 'Diff']:
@@ -213,6 +212,7 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         c1, c2 = st.columns([1.1, 1])
         with c1:
             fig = go.Figure()
+            # 그래프에서는 마이너스 금액도 시각적으로 표현됨
             fig.add_trace(go.Bar(x=graph_vendors, y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
             fig.add_trace(go.Bar(x=graph_vendors, y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
             fig.update_layout(height=495, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45), 
