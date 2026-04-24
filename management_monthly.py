@@ -6,6 +6,9 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout="wide")
 
 # --- [고정 설정 정보] ---
+# 세련된 컬러 팔레트 정의 (파스텔/뮤트톤)
+COLOR_PALETTE = ["#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", "#A2A2A2"]
+
 CONFIG = {
     "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 51, "color": "#333333"},
     "온리프": {
@@ -19,14 +22,14 @@ CONFIG = {
         "전체매출": 36, "전체영익": 60, "병원매출": 85, "병원영익": 127, "법인매출": 132, "법인영익": 163,
         "인건비_병원": 40, "인건비_앤파": 48, "의약품비": 41, "상품매입": 44, "광고비": 50,
         "color": "#006400",
-        "items": {"피부체형": 87, "문제성발톱": 88, "재활의학": 89, "공단매출": 91, "기타": 38}
+        "items": {"피부체형": 87, "문제성발톱": 88, "재활의학": 89, "공단매출": 91, "기기/기타": 38}
     },
     "오블리브": {
         "sheet": "오블리브(송도)_실적", "header": 6,
         "전체매출": 34, "전체영익": 58, "병원매출": 83, "병원영익": 125, "법인매출": 130, "법인영익": 163,
         "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
         "color": "#8B4513",
-        "items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88, "기타": 36}
+        "items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88, "기기/기타": 36}
     }
 }
 
@@ -53,41 +56,60 @@ def get_val(df, row, col):
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
-# [업데이트] 통합 실적 차트 함수: 누적 막대 + 꺾은선
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color):
     st.markdown(f"### {title}")
     fig = go.Figure()
 
-    # 1. 항목별 누적 막대 (매출)
-    if len(sales_dict) > 1: # 항목이 여러개인 경우
-        for label, values in sales_dict.items():
+    # 1. 항목별 누적 막대 (세련된 파스텔톤 적용)
+    if len(sales_dict) > 1:
+        for idx, (label, values) in enumerate(sales_dict.items()):
             if label == "Total": continue
-            fig.add_trace(go.Bar(x=months, y=values, name=label))
+            # 팔레트 색상을 순환하여 적용
+            color = COLOR_PALETTE[idx % len(COLOR_PALETTE)]
+            fig.add_trace(go.Bar(
+                x=months, y=values, name=label, 
+                marker_color=color, marker_line_width=0 # 테두리 제거로 더 깔끔하게
+            ))
         fig.update_layout(barmode='stack')
-    else: # 단일 항목인 경우
-        fig.add_trace(go.Bar(x=months, y=sales_dict.get("Total", []), name="매출", marker_color="#D3D3D3", opacity=0.7))
+    else:
+        fig.add_trace(go.Bar(x=months, y=sales_dict.get("Total", []), name="매출", marker_color="#D3D3D3", opacity=0.6))
 
-    # 2. 영업이익 꺾은선
-    fig.add_trace(go.Scatter(x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
-                             line=dict(color=line_color, width=4), text=[f"{v/100:.1f}억" for v in profit_list], textposition="top center"))
+    # 2. 영업이익 꺾은선 (BU 고유색, 선 굵기 및 마커 조정)
+    fig.add_trace(go.Scatter(
+        x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
+        line=dict(color=line_color, width=3), 
+        marker=dict(size=8, symbol="circle", line=dict(color='white', width=2)),
+        text=[f"{v/100:.1f}억" for v in profit_list], textposition="top center"
+    ))
     
-    # 3. 총매출 텍스트 표시
+    # 3. 총매출 텍스트
     total_sales = sales_dict.get("Total", [])
-    fig.add_trace(go.Scatter(x=months, y=total_sales, mode="text", text=[f"{v/100:.1f}억" for v in total_sales], 
-                             textposition="top center", showlegend=False, hoverinfo='none'))
+    fig.add_trace(go.Scatter(
+        x=months, y=total_sales, mode="text", text=[f"{v/100:.1f}억" for v in total_sales], 
+        textposition="top center", showlegend=False, hoverinfo='none',
+        textfont=dict(color="#444444", size=11)
+    ))
 
-    fig.update_layout(height=450, margin=dict(l=10,r=10,t=40,b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="백만 원"), xaxis=dict(type='category'), hovermode="x unified")
-    fig.add_hline(y=0, line_dash="dash", line_color="black")
+    fig.update_layout(
+        height=450, margin=dict(l=10,r=10,t=40,b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis=dict(title="금액 (백만 원)", gridcolor="#F0F0F0"), 
+        xaxis=dict(type='category', showgrid=False),
+        plot_bgcolor="white", # 배경을 흰색으로 변경하여 색감이 더 잘 살도록
+        hovermode="x unified"
+    )
+    fig.add_hline(y=0, line_dash="dash", line_color="#CCCCCC")
     st.plotly_chart(fig, use_container_width=True)
 
+# (draw_expense_chart, display_metrics 함수 등은 이전의 로직을 유지하되 컬러만 세련되게 조정...)
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_color, bar_color):
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
     avg_ratio = sum(ratios) / len(ratios) if ratios else 0
     fig = go.Figure()
     fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=bar_color, opacity=0.5, text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"))
-    fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color=line_color, width=3), text=[f"{v:.1f}%" for v in ratios], textposition="top center"))
+    fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color=line_color, width=2.5), text=[f"{v:.1f}%" for v in ratios], textposition="top center"))
     fig.add_hline(y=avg_ratio, line_dash="dot", line_color="#D32F2F", yref="y2", annotation_text=f"평균 {avg_ratio:.1f}%", annotation_position="top left")
-    fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(size=18)), height=380, margin=dict(l=10,r=10,t=60,b=10), yaxis=dict(title="금액 (백만 원)", showgrid=False), yaxis2=dict(title="비중 (%)", overlaying="y", side="right", range=[0, max(ratios)*1.6 if ratios else 30], showgrid=True, gridcolor="rgba(0,0,0,0.1)"), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), xaxis=dict(type='category'), hovermode="x unified")
+    fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(size=18)), height=380, margin=dict(l=10,r=10,t=60,b=10), yaxis=dict(title="금액 (백만 원)", showgrid=False), yaxis2=dict(title="비중 (%)", overlaying="y", side="right", range=[0, max(ratios)*1.6 if ratios else 30], showgrid=False), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), xaxis=dict(type='category'), plot_bgcolor="white", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 def display_metrics(months, sales_list, profit_list):
@@ -138,7 +160,6 @@ try:
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
-            # [중요] 병원 상세 실적 - 항목별 누적 막대 적용
             h_sales_dict = {"Total": [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]}
             if conf.get("items"):
                 for item_name, item_row in conf["items"].items():
@@ -155,13 +176,14 @@ try:
             h_sales_list = h_sales_dict["Total"]
             p_sales_list = p_sales
             c1, c2 = st.columns(2)
+            # 비용 분석 차트의 막대 컬러는 가독성을 위해 뮤트톤으로 조정
             with c1:
-                draw_expense_chart("① 인건비(병원) 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", conf["color"], "#4B8BBE")
-                draw_expense_chart("③ 의약품비 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", conf["color"], "#306998")
-                draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", conf["color"], "#FFD43B")
+                draw_expense_chart("① 인건비(병원) 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", conf["color"], "#A8DADC")
+                draw_expense_chart("③ 의약품비 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", conf["color"], "#457B9D")
+                draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", conf["color"], "#F1FAEE")
             with c2:
-                draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales_list, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#6495ED")
-                draw_expense_chart("④ 상품매입 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#FFE873")
+                draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales_list, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
+                draw_expense_chart("④ 상품매입 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
 
 except Exception as e:
     st.error(f"데이터 처리 중 오류: {e}")
