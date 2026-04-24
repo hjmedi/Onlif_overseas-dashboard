@@ -11,19 +11,19 @@ CONFIG = {
     "온리프": {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
-        "인건비_병원": 32, "의약품비": 33, "상품매입": 36, "광고비": 42,
+        "인건비_병원": 32, "인건비_앤파": 40, "의약품비": 33, "상품매입": 36, "광고비": 42,
         "color": "#1f77b4"
     },
     "르샤인": {
         "sheet": "르샤인_실적", "header": 5,
         "전체매출": 36, "전체영익": 60, "병원매출": 85, "병원영익": 127, "법인매출": 132, "법인영익": 163,
-        "인건비_병원": 40, "의약품비": 41, "상품매입": 44, "광고비": 50,
+        "인건비_병원": 40, "인건비_앤파": 48, "의약품비": 41, "상품매입": 44, "광고비": 50,
         "color": "#006400"
     },
     "오블리브": {
         "sheet": "오블리브(송도)_실적", "header": 6,
         "전체매출": 34, "전체영익": 58, "병원매출": 83, "병원영익": 125, "법인매출": 130, "법인영익": 163,
-        "인건비_병원": 38, "의약품비": 39, "상품매입": 42, "광고비": 48,
+        "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
         "color": "#8B4513"
     }
 }
@@ -74,7 +74,7 @@ def draw_chart(title, months, s, p, c):
     fig = go.Figure()
     fig.add_trace(go.Bar(x=months, y=p, name="영업이익", marker_color=c, opacity=0.6, text=[f"{v/100:.1f}억" for v in p], textposition="outside"))
     fig.add_trace(go.Scatter(x=months, y=s, name="매출", mode="lines+markers+text", line=dict(color="#FF4B4B", width=3), text=[f"{v/100:.1f}억" for v in s], textposition="top center"))
-    fig.update_layout(height=400, margin=dict(l=10,r=10,t=30,b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="금액 (백만 원)"), xaxis=dict(type='category'), hovermode="x unified")
+    fig.update_layout(height=400, margin=dict(l=10,r=10,t=30,b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="백만 원"), xaxis=dict(type='category'), hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, color):
@@ -103,45 +103,42 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        
-        # [1] 전체 연결 실적
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         st.info(f"💡 {sel_months[-1]} 기준 그룹 전체 실적 요약")
         display_metrics(sel_months, ts, tp)
-        draw_chart("📊 그룹 전체 연결 실적 (병원+법인 통합)", sel_months, ts, tp, "#E91E63")
-        
+        draw_chart("📊 그룹 전체 연결 실적", sel_months, ts, tp, "#E91E63")
         st.divider()
-
-        # [2] 법인 연결 실적 (복구됨)
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        st.info(f"🏢 {sel_months[-1]} 기준 법인(HQ+앤파트너스) 연결 실적")
+        st.info(f"🏢 {sel_months[-1]} 기준 법인 연결 실적")
         display_metrics(sel_months, cs, cp)
-        draw_chart("🏢 법인 연결 실적 (메디빌더 본사 + 각 BU 앤파트너스 합산)", sel_months, cs, cp, "#9C27B0")
+        draw_chart("🏢 법인 연결 실적", sel_months, cs, cp, "#9C27B0")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
-        
         main_s_row, main_p_row = (conf["매출"], conf["영익"]) if k == "메디빌더" else (conf["전체매출"], conf["전체영익"])
         sum_s = [get_val(dfs[k], main_s_row, maps[k][m]) for m in sel_months]
         sum_p = [get_val(dfs[k], main_p_row, maps[k][m]) for m in sel_months]
-        
         display_metrics(sel_months, sum_s, sum_p)
         draw_chart(f"📊 {k} 실적 추이", sel_months, sum_s, sum_p, conf["color"])
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
-            st.subheader(f"📑 {k} 핵심 비용 및 비중 분석")
+            st.subheader(f"📑 {k} 핵심 비용 분석")
             h_sales = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
+            p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
+            
             c1, c2 = st.columns(2)
             with c1:
-                draw_expense_chart("인건비(병원) 분석", sel_months, h_sales, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비", "#4B8BBE")
+                draw_expense_chart("인건비(병원) 분석", sel_months, h_sales, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", "#4B8BBE")
                 draw_expense_chart("의약품비 분석", sel_months, h_sales, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", "#306998")
-            with c2:
                 draw_expense_chart("상품매입 분석", sel_months, h_sales, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", "#FFE873")
+            with c2:
+                # 인건비(앤파트너스) 분석 추가
+                draw_expense_chart("인건비(법인) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(법)", "#6495ED")
                 draw_expense_chart("광고선전비 분석", sel_months, h_sales, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", "#FFD43B")
 
 except Exception as e:
