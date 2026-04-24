@@ -79,13 +79,22 @@ def draw_chart(title, months, s, p, c):
 
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, color):
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
+    avg_ratio = sum(ratios) / len(ratios) if ratios else 0
+    
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=color, opacity=0.5, text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"))
-    fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color="orange", width=2), text=[f"{v:.1f}%" for v in ratios], textposition="top right"))
+    # 비용 금액 (막대)
+    fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=color, opacity=0.4, text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"))
+    # 매출 대비 비중 (꺾은선)
+    fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color="#FF5722", width=2.5), text=[f"{v:.1f}%" for v in ratios], textposition="top center"))
+    
+    # 평균선 추가 (y2축 기준)
+    fig.add_hline(y=avg_ratio, line_dash="dot", line_color="#D32F2F", yref="y2", annotation_text=f"평균 {avg_ratio:.1f}%", annotation_position="top left")
+
     fig.update_layout(
-        title=f"🏷️ {title}", height=350, margin=dict(l=10,r=10,t=50,b=10),
-        yaxis=dict(title="금액 (백만 원)"),
-        yaxis2=dict(title="비중 (%)", overlaying="y", side="right", range=[0, max(ratios)*1.5 if ratios else 30]),
+        title=dict(text=f"<b>{title}</b>", font=dict(size=18)),
+        height=380, margin=dict(l=10,r=10,t=60,b=10),
+        yaxis=dict(title="금액 (백만 원)", showgrid=False),
+        yaxis2=dict(title="비중 (%)", overlaying="y", side="right", range=[0, max(ratios)*1.6 if ratios else 30], showgrid=True, gridcolor="rgba(0,0,0,0.1)"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         xaxis=dict(type='category'), hovermode="x unified"
     )
@@ -105,13 +114,11 @@ try:
         st.title("🌐 그룹 연결 실적 현황")
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        st.info(f"💡 {sel_months[-1]} 기준 그룹 전체 실적 요약")
         display_metrics(sel_months, ts, tp)
         draw_chart("📊 그룹 전체 연결 실적", sel_months, ts, tp, "#E91E63")
         st.divider()
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        st.info(f"🏢 {sel_months[-1]} 기준 법인 연결 실적")
         display_metrics(sel_months, cs, cp)
         draw_chart("🏢 법인 연결 실적", sel_months, cs, cp, "#9C27B0")
         
@@ -127,19 +134,19 @@ try:
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
-            st.subheader(f"📑 {k} 핵심 비용 분석")
+            st.subheader(f"📑 {k} 5대 핵심 비용 분석 (비중 평균선 포함)")
             h_sales = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
             
+            # 5대 비용 차트 배치 (2-2-1 구조)
             c1, c2 = st.columns(2)
             with c1:
-                draw_expense_chart("인건비(병원) 분석", sel_months, h_sales, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", "#4B8BBE")
-                draw_expense_chart("의약품비 분석", sel_months, h_sales, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", "#306998")
-                draw_expense_chart("상품매입 분석", sel_months, h_sales, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", "#FFE873")
+                draw_expense_chart("① 인건비(병원) 분석", sel_months, h_sales, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", "#4B8BBE")
+                draw_expense_chart("③ 의약품비 분석", sel_months, h_sales, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", "#306998")
+                draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_sales, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", "#FFD43B")
             with c2:
-                # 인건비(앤파트너스) 분석 추가
-                draw_expense_chart("인건비(법인) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(법)", "#6495ED")
-                draw_expense_chart("광고선전비 분석", sel_months, h_sales, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", "#FFD43B")
+                draw_expense_chart("② 인건비(법인) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(법)", "#6495ED")
+                draw_expense_chart("④ 상품매입 분석", sel_months, h_sales, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", "#FFE873")
 
 except Exception as e:
     st.error(f"데이터 처리 중 오류: {e}")
