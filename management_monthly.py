@@ -282,12 +282,30 @@ try:
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
         if h_line: st.info(h_line)
         display_metrics(sel_months, sum_s, sum_p)
-        if k in ["르샤인", "오블리브"]:
-            anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
-            hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
-            draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
-        else:
-            draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
+        # 온리프, 르샤인, 오블리브 모두 통합 실적 구조로 변경
+        if k in ["온리프", "르샤인", "오블리브"]:
+            if k == "온리프":
+                # 온리프 전용: 온리프(26-28) + 기타(29-30) + 앤파트너스(32) 구조
+                onleaf_s = [sum([get_val(dfs[k], r, maps[k][m]) for r in conf["onleaf_rows"]]) for m in sel_months]
+                etc_s = [sum([get_val(dfs[k], r, maps[k][m]) for r in conf["etc_rows"]]) for m in sel_months]
+                anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
+                
+                draw_performance_chart(
+                    f"📊 {k} 전체 실적 (병원 + 앤파트너스)", 
+                    sel_months, 
+                    {"Total": sum_s, "온리프": onleaf_s, "기타(심플 등)": etc_s, "앤파트너스": anpa_s}, 
+                    sum_p, conf["color"]
+                )
+            else:
+                # 르샤인, 오블리브: 기존 병원 + 앤파트너스 구조
+                anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
+                hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
+                draw_performance_chart(
+                    f"📊 {k} 전체 실적 (병원 + 앤파트너스)", 
+                    sel_months, 
+                    {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, 
+                    sum_p, conf["color"]
+                )
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
