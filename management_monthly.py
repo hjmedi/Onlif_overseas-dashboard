@@ -35,33 +35,39 @@ CONFIG = {
     }
 }
 
-# --- [추가 기능: 자동 헤드라인 생성] ---
-def generate_headline(months, sales, profits, name):
+# [기능] 실적 헤드라인 생성 함수
+def generate_headline(months, sales, profits, name, is_item=False):
     if len(months) < 2: return None
-    
     curr_s, prev_s = sales[-1], sales[-2]
     curr_p, prev_p = profits[-1], profits[-2]
-    curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
-    prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
     
     s_diff = (curr_s / prev_s - 1) * 100 if prev_s != 0 else 0
-    r_diff = curr_r - prev_r
-    
     messages = []
-    # 1. 매출 변동 체크
-    if s_diff >= 10: messages.append(f"📈 **매출 급증**: 전월 대비 **{s_diff:.1f}%** 상승하며 강력한 성장세")
-    elif s_diff <= -10: messages.append(f"📉 **매출 감소**: 전월 대비 **{abs(s_diff):.1f}%** 하락, 원인 파악 필요")
     
-    # 2. 이익률 변동 체크
-    if r_diff >= 5: messages.append(f"✨ **수익성 개선**: 영업이익률이 전월 대비 **{r_diff:.1f}%p** 크게 상승")
-    elif r_diff <= -5: messages.append(f"⚠️ **수익성 악화**: 영업이익률이 전월 대비 **{abs(r_diff):.1f}%p** 하락")
+    # 1. 매출 변동 알림
+    if s_diff >= 10: messages.append(f"📈 **{name} 성장**: 전월비 **{s_diff:.1f}%** 급증")
+    elif s_diff <= -10: messages.append(f"📉 **{name} 하락**: 전월비 **{abs(s_diff):.1f}%** 감소")
     
-    # 3. 흑자/적자 전환 체크
-    if prev_p <= 0 and curr_p > 0: messages.append(f"🎉 **흑자 전환**: 이번 달 이익 구조가 플러스로 돌아섰습니다.")
-    
-    if not messages:
-        return f"✅ **실적 유지**: {name}은(는) 전월과 유사한 견고한 실적 흐름을 유지 중입니다."
-    return " | ".join(messages)
+    # 2. 이익 기반 인사이트 (항목별 매출일 때는 생략 가능)
+    if not is_item:
+        curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
+        prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
+        r_diff = curr_r - prev_r
+        if r_diff >= 5: messages.append(f"✨ **수익 최적화**: 이익률 **{r_diff:.1f}%p** 개선")
+        elif r_diff <= -5: messages.append(f"⚠️ **비용 주의**: 이익률 **{abs(r_diff):.1f}%p** 악화")
+
+    return " | ".join(messages) if messages else None
+
+# [기능] 센터(항목)별 주요 이슈 추출
+def generate_item_headlines(months, item_dict):
+    if len(months) < 2: return []
+    top_issues = []
+    for name, values in item_dict.items():
+        if name == "Total": continue
+        diff = (values[-1] / values[-2] - 1) * 100 if values[-2] > 0 else 0
+        if diff >= 15: top_issues.append(f"🔥 **{name}** 항목이 **{diff:.1f}%** 급성장하며 매출 견인")
+        elif diff <= -15: top_issues.append(f"🧊 **{name}** 항목 매출이 전월비 **{abs(diff):.1f}%** 하락")
+    return top_issues
 
 @st.cache_data
 def load_all_data():
@@ -70,7 +76,6 @@ def load_all_data():
     months_dict = {"25.01": "2501", "25.02": "2502", "25.03": "2503", "25.04": "2504", "25.05": "2505", "25.06": "2506", 
                    "25.07": "2507", "25.08": "2508", "25.09": "2509", "25.10": "2510", "25.11": "2511", "25.12": "2512", 
                    "26.01": "2601", "26.02": "2602"}
-
     for key, conf in CONFIG.items():
         try:
             df = pd.read_excel(file_name, sheet_name=conf["sheet"], header=None)
@@ -96,15 +101,12 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
 
     total_sales = sales_dict.get("Total", [0]*len(months))
     profit_labels = [f"{p/100:.1f}억<br>({(p/s*100) if s!=0 else 0:.1f}%)" for s, p in zip(total_sales, profit_list)]
-
     fig.add_trace(go.Scatter(x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
                              line=dict(color=line_color, width=3.5), marker=dict(size=8, symbol="circle", line=dict(color='white', width=2)),
                              text=profit_labels, textposition="top center", textfont=dict(size=11, color=line_color)))
-    
     if "Total" in sales_dict:
         fig.add_trace(go.Scatter(x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
                                  textposition="top center", showlegend=False, hoverinfo='none', textfont=dict(color="#444444", size=11)))
-
     fig.update_layout(height=480, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                       yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False), plot_bgcolor="white", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
@@ -121,13 +123,12 @@ def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_colo
 
 def display_metrics(months, sales_list, profit_list):
     if len(sales_list) < 1: return
-    curr_s, curr_p = sales_list[-1], profit_list[-1]
-    curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
-    delta_s = f"{(curr_s - sales_list[-2])/100:+.1f}억" if len(sales_list)>1 else "N/A"
+    curr_s, prev_s = sales_list[-1], sales_list[-2] if len(sales_list)>1 else sales_list[-1]
+    curr_p = profit_list[-1]
     m1, m2, m3 = st.columns(3)
-    m1.metric(f"📅 {months[-1]} 매출", f"{curr_s/100:.1f}억", delta_s)
+    m1.metric(f"📅 {months[-1]} 매출", f"{curr_s/100:.1f}억", f"{(curr_s-prev_s)/100:+.1f}억")
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
-    m3.metric(f"📊 {months[-1]} 이익률", f"{curr_r:.1f}%")
+    m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
@@ -144,8 +145,8 @@ try:
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         
-        headline = generate_headline(sel_months, ts, tp, "그룹 전체")
-        st.success(headline) # 헤드라인 표시
+        h_line = generate_headline(sel_months, ts, tp, "그룹 전체")
+        if h_line: st.success(h_line)
         
         display_metrics(sel_months, ts, tp)
         draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
@@ -159,14 +160,11 @@ try:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
-        main_s_row, main_p_row = (conf["매출"], conf["영익"]) if k == "메디빌더" else (conf["전체매출"], conf["전체영익"])
-        sum_s = [get_val(dfs[k], main_s_row, maps[k][m]) for m in sel_months]
-        sum_p = [get_val(dfs[k], main_p_row, maps[k][m]) for m in sel_months]
+        sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k][m]) for m in sel_months]
+        sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k][m]) for m in sel_months]
         
-        # 헤드라인 생성 및 표시
-        headline = generate_headline(sel_months, sum_s, sum_p, k)
-        if "악화" in headline or "감소" in headline: st.warning(headline)
-        else: st.success(headline)
+        h_line = generate_headline(sel_months, sum_s, sum_p, k)
+        if h_line: st.info(h_line)
         
         display_metrics(sel_months, sum_s, sum_p)
 
@@ -181,9 +179,19 @@ try:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
+            
+            # [추가] 센터(항목)별 헤드라인 이슈 생성
             if conf.get("hosp_items"):
                 h_sales_dict = {"Total": h_total_s}
-                for item_name, item_row in conf["hosp_items"].items(): h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
+                for item_name, item_row in conf["hosp_items"].items():
+                    h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
+                
+                # 주요 이슈 표시
+                item_issues = generate_item_headlines(sel_months, h_sales_dict)
+                if item_issues:
+                    with st.expander("📌 의원 센터별 주요 변동 이슈 확인"):
+                        for issue in item_issues: st.write(issue)
+                
                 draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
