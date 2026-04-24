@@ -7,7 +7,6 @@ st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout=
 
 # --- [컬러 테마 정의] ---
 HOSP_ITEM_COLORS = ["#8ECAE6", "#219EBC", "#457B9D", "#A8DADC", "#F1FAEE"]
-# 연결 실적 및 BU 실적용 뮤트톤 컬러
 TOTAL_SPLIT_COLORS = {
     "그룹 매출": "#BDBDBD", 
     "법인 합산": "#D1C4E9", 
@@ -68,23 +67,34 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
     st.markdown(f"### {title}")
     fig = go.Figure()
 
+    # 매출 막대 그래프
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
         color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)] if use_custom_palette else TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
         fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0, opacity=0.85))
 
+    # [수정] 영업이익률 계산 및 텍스트 생성
+    total_sales = sales_dict.get("Total", [0]*len(months))
+    profit_labels = []
+    for s, p in zip(total_sales, profit_list):
+        ratio = (p / s * 100) if s != 0 else 0
+        profit_labels.append(f"{p/100:.1f}억<br>({ratio:.1f}%)")
+
+    # 영업이익 꺾은선 그래프
     fig.add_trace(go.Scatter(
         x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
         line=dict(color=line_color, width=3.5), 
         marker=dict(size=8, symbol="circle", line=dict(color='white', width=2)),
-        text=[f"{v/100:.1f}억" for v in profit_list], textposition="top center"
+        text=profit_labels, textposition="top center",
+        textfont=dict(size=11, color=line_color)
     ))
     
+    # 전체 매출 합계 텍스트 (막대 위)
     if "Total" in sales_dict:
         fig.add_trace(go.Scatter(x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
                                  textposition="top center", showlegend=False, hoverinfo='none', textfont=dict(color="#444444", size=11)))
 
-    fig.update_layout(height=450, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    fig.update_layout(height=480, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                       yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False), plot_bgcolor="white", hovermode="x unified")
     fig.add_hline(y=0, line_dash="dash", line_color="#DDDDDD")
     st.plotly_chart(fig, use_container_width=True)
@@ -147,7 +157,6 @@ try:
         if k in ["르샤인", "오블리브"]:
             anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
             hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
-            # 요청하신 대로 vs 를 + 로 변경
             draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
         else:
             draw_performance_chart(f"📊 {k} 전체 실적 추이", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
