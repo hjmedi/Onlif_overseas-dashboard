@@ -5,9 +5,15 @@ import plotly.graph_objects as go
 # 1. 페이지 설정
 st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout="wide")
 
-# --- [컬러 테마 정의] ---
-HOSP_ITEM_COLORS = ["#8ECAE6", "#219EBC", "#457B9D", "#A8DADC", "#F1FAEE"]
-TOTAL_SPLIT_COLORS = {"병원": "#219EBC", "앤파트너스": "#F4A261", "그룹 매출": "#E91E63", "법인 합산": "#9C27B0"}
+# --- [컬러 테마 정의 - 눈이 편안한 뮤트 팔레트] ---
+HOSP_ITEM_COLORS = ["#A8DADC", "#457B9D", "#1D3557", "#E9C46A", "#F4A261"]
+# 연결 실적용 색상 (원색 제거)
+TOTAL_SPLIT_COLORS = {
+    "그룹 매출": "#BDBDBD",      # 그룹 전체 막대: 차분한 그레이
+    "법인 합산": "#D1C4E9",      # 법인 연결 막대: 연한 라벤더
+    "병원": "#A8DADC",          # BU별 병원 막대
+    "앤파트너스": "#E9C46A"      # BU별 앤파 막대
+}
 
 CONFIG = {
     "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 51, "color": "#333333"},
@@ -67,9 +73,9 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
         if use_custom_palette:
             color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)]
         else:
-            color = TOTAL_SPLIT_COLORS.get(label, "#D3D3D3")
+            color = TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
             
-        fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0))
+        fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, opacity=0.8, marker_line_width=0))
 
     fig.add_trace(go.Scatter(
         x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
@@ -88,12 +94,13 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
     fig.update_layout(
         height=450, margin=dict(l=10,r=10,t=40,b=10),
         barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis=dict(title="금액 (백만 원)", gridcolor="#F0F0F0"), xaxis=dict(type='category', showgrid=False),
+        yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False),
         plot_bgcolor="white", hovermode="x unified"
     )
-    fig.add_hline(y=0, line_dash="dash", line_color="#CCCCCC")
+    fig.add_hline(y=0, line_dash="dash", line_color="#DDDDDD")
     st.plotly_chart(fig, use_container_width=True)
 
+# (draw_expense_chart, display_metrics 함수 유지)
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_color, bar_color):
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
     avg_ratio = sum(ratios) / len(ratios) if ratios else 0
@@ -130,19 +137,19 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        # 전체 연결
+        # 전체 연결 - 차분한 네이비 선
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         display_metrics(sel_months, ts, tp)
-        draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#E91E63")
+        draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
         
         st.divider()
-        # 법인 연결 (HQ + 앤파 합계)
+        # 법인 연결 - 차분한 퍼플 선
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)")
         display_metrics(sel_months, cs, cp)
-        draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#9C27B0")
+        draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
