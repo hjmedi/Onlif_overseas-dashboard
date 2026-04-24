@@ -130,10 +130,12 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
     m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
-# --- [수정: 의약품비 거래처 분석 - 증감율 계산 로직 수정 및 비중 추가] ---
+# --- [의약품비 거래처 분석 - 비중 표기 삭제 버전] ---
 def display_vendor_analysis_final(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
+    # 요청에 따라 제목에서 비중(%) 삭제
+    st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
         # A(월), B(금액), C(사업자), D(계정), Q(거래처) 추출
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
@@ -146,25 +148,16 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
         
-        # [추가] 당월 전체 의약품비 합계 계산 (비중 산출용)
-        total_pharm_amt = df[df['Month'] == curr_m]['Amount'].sum()
-        
         curr_df = df[df['Month'] == curr_m].groupby('Vendor')['Amount'].sum().reset_index()
         prev_df = df[df['Month'] == prev_m].groupby('Vendor')['Amount'].sum().reset_index()
         
         merged = pd.merge(curr_df, prev_df, on='Vendor', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
         merged['Diff'] = merged['Amount_Curr'] - merged['Amount_Prev']
+        
+        # 정확한 증감율 계산 ((당월-전월)/전월)
         merged['Growth'] = merged.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] > 0 else (100.0 if x['Amount_Curr'] > 0 else 0.0), axis=1)
         
         top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10).reset_index(drop=True)
-        
-        # [추가] Top 10 합계 비중 계산
-        top10_sum = top10['Amount_Curr'].sum()
-        top10_ratio = (top10_sum / total_pharm_amt * 100) if total_pharm_amt > 0 else 0
-        
-        # 제목에 비중 표기 추가
-        st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10) - 당월 비중: {top10_ratio:.1f}%")
-        
         top10['Vendor_Rank'] = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
         
         c1, c2 = st.columns([3, 2])
@@ -195,7 +188,7 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
                     "증감율": st.column_config.NumberColumn(format="%.1f%%")
                 }
             )
-    except: st.info("데이터 부족")
+    except: st.info("데이터 분석 중")
 
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
@@ -258,7 +251,7 @@ try:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
             
-            # [최하단 추가] 의약품비 전표 데이터 기반 상세 분석 (Top 10 비중 표기 포함)
+            # [최하단 추가] 의약품비 전표 데이터 상세 분석
             biz_name = conf.get("biz_name", k)
             raw_data = load_raw_data_only()
             display_vendor_analysis_final(raw_data, end_m, biz_name)
