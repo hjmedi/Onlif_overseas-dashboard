@@ -62,6 +62,7 @@ def generate_item_headlines(months, item_dict):
         elif diff <= -15: top_issues.append(f"🧊 **{name}** 항목 매출이 전월비 **{abs(diff):.1f}%** 하락")
     return top_issues
 
+# --- [데이터 로드] ---
 @st.cache_data
 def load_all_data():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
@@ -92,13 +93,23 @@ def get_val(df, row, col):
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
+# --- [시각화 함수] ---
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
-    st.markdown(f"### {title}")
+    st.markdown(f"### {title}") 
+    
+    # [복구 완료] 센터별 실적 멘트(Expander) 로직 다시 추가
+    if use_custom_palette:
+        item_issues = generate_item_headlines(months, sales_dict)
+        if item_issues:
+            with st.expander("📌 의원 센터별 주요 변동 이슈 확인"):
+                for issue in item_issues: st.write(issue)
+
     fig = go.Figure()
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
         color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)] if use_custom_palette else TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
         fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0, opacity=0.85))
+
     total_sales = sales_dict.get("Total", [0]*len(months))
     profit_labels = [f"{p/100:.1f}억<br>({(p/s*100) if s!=0 else 0:.1f}%)" for s, p in zip(total_sales, profit_list)]
     fig.add_trace(go.Scatter(x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
@@ -130,17 +141,14 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
     m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
-# --- [의약품비 거래처 분석 - 비중 표기 삭제 버전] ---
+# --- [의약품비 거래처 분석 - 비중 표기 삭제 최종 버전] ---
 def display_vendor_analysis_final(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
-    # 요청에 따라 제목에서 비중(%) 삭제
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
-        # A(월), B(금액), C(사업자), D(계정), Q(거래처) 추출
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
-        # 의약품비 항목 및 해당 BU 필터링
         df = df[(df['Category'] == "03.매출원가-의약품비") & (df['Biz'].str.contains(biz_name, na=False))]
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
@@ -153,8 +161,6 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         
         merged = pd.merge(curr_df, prev_df, on='Vendor', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
         merged['Diff'] = merged['Amount_Curr'] - merged['Amount_Prev']
-        
-        # 정확한 증감율 계산 ((당월-전월)/전월)
         merged['Growth'] = merged.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] > 0 else (100.0 if x['Amount_Curr'] > 0 else 0.0), axis=1)
         
         top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10).reset_index(drop=True)
@@ -178,8 +184,7 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
             
             st.dataframe(
                 display_df[['Vendor_Rank', '전월', '당월', '차이', '증감율']], 
-                hide_index=True, 
-                use_container_width=True,
+                hide_index=True, use_container_width=True,
                 column_config={
                     "Vendor_Rank": "거래처명",
                     "전월": st.column_config.NumberColumn(format="%.1f"), 
@@ -204,7 +209,7 @@ try:
         st.title("🌐 그룹 연결 실적 현황")
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        h_line = generate_headline(sel_months, ts, tp, "그룹 전체")
+        h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
         if h_line: st.success(h_line)
         display_metrics(sel_months, ts, tp)
         draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
@@ -214,9 +219,9 @@ try:
         display_metrics(sel_months, cs, cp)
         draw_performance_chart("🏢 법인 연결(HQ+파트너스)", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
     else:
+        st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
-        st.title(f"🚀 {selected_mode} 경영 리포트")
         sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k][m]) for m in sel_months]
         sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k][m]) for m in sel_months]
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
@@ -235,7 +240,7 @@ try:
             if conf.get("hosp_items"):
                 h_sales_dict = {"Total": h_total_s}
                 for item_name, item_row in conf["hosp_items"].items(): h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
-                draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], True)
+                draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
@@ -251,7 +256,7 @@ try:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
             
-            # [최하단 추가] 의약품비 전표 데이터 상세 분석
+            # [최하단] 의약품비 전표 데이터 상세 분석
             biz_name = conf.get("biz_name", k)
             raw_data = load_raw_data_only()
             display_vendor_analysis_final(raw_data, end_m, biz_name)
