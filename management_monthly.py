@@ -7,7 +7,7 @@ st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout=
 
 # --- [컬러 테마 정의] ---
 HOSP_ITEM_COLORS = ["#8ECAE6", "#219EBC", "#457B9D", "#A8DADC", "#F1FAEE"]
-# 연결 실적 및 BU 전체 실적용 색상
+# 연결 실적 및 BU 실적용 뮤트톤 컬러
 TOTAL_SPLIT_COLORS = {
     "그룹 매출": "#BDBDBD", 
     "법인 합산": "#D1C4E9", 
@@ -70,11 +70,7 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
 
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
-        if use_custom_palette:
-            color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)]
-        else:
-            color = TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
-            
+        color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)] if use_custom_palette else TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
         fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0, opacity=0.85))
 
     fig.add_trace(go.Scatter(
@@ -85,18 +81,11 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
     ))
     
     if "Total" in sales_dict:
-        fig.add_trace(go.Scatter(
-            x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
-            textposition="top center", showlegend=False, hoverinfo='none',
-            textfont=dict(color="#444444", size=11)
-        ))
+        fig.add_trace(go.Scatter(x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
+                                 textposition="top center", showlegend=False, hoverinfo='none', textfont=dict(color="#444444", size=11)))
 
-    fig.update_layout(
-        height=450, margin=dict(l=10,r=10,t=40,b=10),
-        barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False),
-        plot_bgcolor="white", hovermode="x unified"
-    )
+    fig.update_layout(height=450, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                      yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False), plot_bgcolor="white", hovermode="x unified")
     fig.add_hline(y=0, line_dash="dash", line_color="#DDDDDD")
     st.plotly_chart(fig, use_container_width=True)
 
@@ -104,12 +93,8 @@ def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_colo
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
     avg_ratio = sum(ratios) / len(ratios) if ratios else 0
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=months, y=exp_list, name=f"{exp_label} 금액", 
-        marker_color=bar_color, opacity=0.8, # 가독성 개선 위해 진하게 수정
-        marker_line_color=bar_color, marker_line_width=1,
-        text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"
-    ))
+    fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=bar_color, opacity=0.8, marker_line_color=bar_color, marker_line_width=1,
+                         text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"))
     fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color=line_color, width=2.5), text=[f"{v:.1f}%" for v in ratios], textposition="top center"))
     fig.add_hline(y=avg_ratio, line_dash="dot", line_color="#D32F2F", yref="y2", annotation_text=f"평균 {avg_ratio:.1f}%", annotation_position="top left")
     fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(size=18)), height=380, margin=dict(l=10,r=10,t=60,b=10), yaxis=dict(title="금액 (백만 원)", showgrid=False), yaxis2=dict(title="비중 (%)", overlaying="y", side="right", range=[0, max(ratios)*1.6 if ratios else 30], showgrid=False), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), xaxis=dict(type='category'), plot_bgcolor="white", hovermode="x unified")
@@ -141,18 +126,14 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        # 1. 전체 연결
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        display_metrics(sel_months, ts, tp)
-        draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        display_metrics(sel_months, ts, tp); draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        
         st.divider()
-        # 2. 법인 연결 (복구 완료)
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)")
-        display_metrics(sel_months, cs, cp)
-        draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
+        st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)"); display_metrics(sel_months, cs, cp); draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
@@ -163,11 +144,11 @@ try:
         sum_p = [get_val(dfs[k], main_p_row, maps[k][m]) for m in sel_months]
         display_metrics(sel_months, sum_s, sum_p)
 
-        # BU 실적 (병원 vs 앤파 2분할 복구)
         if k in ["르샤인", "오블리브"]:
             anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
             hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
-            draw_performance_chart(f"📊 {k} 전체 실적 (병원 vs 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
+            # 요청하신 대로 vs 를 + 로 변경
+            draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
         else:
             draw_performance_chart(f"📊 {k} 전체 실적 추이", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
 
@@ -175,12 +156,9 @@ try:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
-            
-            # 병원 상세 (센터별 4대 실적)
             if conf.get("hosp_items"):
                 h_sales_dict = {"Total": h_total_s}
-                for item_name, item_row in conf["hosp_items"].items():
-                    h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
+                for item_name, item_row in conf["hosp_items"].items(): h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
                 draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
