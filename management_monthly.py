@@ -170,7 +170,6 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         top10_curr_sum = top10['Amount_Curr'].sum()
         top10_prev_sum = top10['Amount_Prev'].sum()
         
-        # 요약 행 생성
         summary_data = [
             {'Vendor': 'Top 10 합계', 'Amount_Curr': top10_curr_sum, 'Amount_Prev': top10_prev_sum},
             {'Vendor': '의약품비 전체', 'Amount_Curr': total_curr, 'Amount_Prev': total_prev},
@@ -179,29 +178,26 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
              'Amount_Prev': (top10_prev_sum/total_prev*100) if total_prev > 0 else 0}
         ]
         
-        # 데이터 결합 및 계산
         top10['Vendor'] = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
         display_df = pd.concat([top10, pd.DataFrame(summary_data)], ignore_index=True)
         display_df['Diff'] = display_df['Amount_Curr'] - display_df['Amount_Prev']
         display_df['Growth'] = display_df.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] > 0 else 0, axis=1)
 
-        # [4] 시각화 가공 (단위 변환 및 포맷팅)
-        # 금액 컬럼들은 백만원 단위로 변환 (비중 행 제외)
+        # [4] 단위 변환 (금액 행만)
         for col in ['Amount_Prev', 'Amount_Curr', 'Diff']:
             mask = display_df['Vendor'] != 'Top 10 비중'
             display_df.loc[mask, col] = display_df.loc[mask, col] / 1000000
 
-        # 표 전용 데이터프레임 (문자열 변환으로 % 기호 삽입)
         table_df = display_df.copy()
         
-        # [5] 화면 레이아웃 (표 비중 확대하여 스크롤 방지)
-        c1, c2 = st.columns([1.1, 1]) # 표 공간 확보를 위해 비율 조정
+        # [5] 레이아웃 및 스타일 적용
+        c1, c2 = st.columns([1.1, 1])
         
         with c1:
             fig = go.Figure()
             fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
             fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
-            fig.update_layout(height=520, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45), 
+            fig.update_layout(height=495, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45), 
                               yaxis=dict(title="백만 원"), margin=dict(l=10, r=10, t=30, b=80),
                               legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             st.plotly_chart(fig, use_container_width=True)
@@ -209,31 +205,27 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         with c2:
             st.write("📊 **의약품비 변동 상세 (단위: 백만 원)**")
             
-            # [핵심] Pandas Styler를 사용한 색상 및 포맷 지정
             def style_medicine_table(styler):
-                # 1. 'Top 10 비중' 행 숫자 뒤에 % 붙이기
-                styler.format({
-                    "Amount_Prev": lambda x: f"{x:.1f}%" if styler.data.loc[styler.data.index[styler.data.Vendor == 'Top 10 비중'], 'Amount_Prev'].index[0] == styler.data.index[styler.data.Vendor == 'Top 10 비중'].tolist()[0] else f"{x:.1f}",
-                    "Amount_Curr": "{:.1f}",
-                    "Diff": "{:+.1f}",
-                    "Growth": "{:.1f}%"
-                })
-                # 비중 행만 특별 포맷팅 (복잡한 람다 대신 단순화 전략)
+                # 비중 행은 % 기호, 일반 행은 소수점 포맷
                 idx_ratio = table_df[table_df['Vendor'] == 'Top 10 비중'].index
-                for col in ['Amount_Prev', 'Amount_Curr', 'Diff']:
-                    styler.format(subset=(idx_ratio, col), formatter="{:.1f}%")
+                idx_others = table_df[table_df['Vendor'] != 'Top 10 비중'].index
                 
-                # 2. 특정 행 배경색 넣기
+                styler.format(subset=(idx_others, ['Amount_Prev', 'Amount_Curr']), formatter="{:.1f}")
+                styler.format(subset=(idx_others, 'Diff'), formatter="{:+.1f}")
+                styler.format(subset=(idx_ratio, ['Amount_Prev', 'Amount_Curr', 'Diff']), formatter="{:.1f}%")
+                styler.format(subset='Growth', formatter="{:+.1f}%")
+                
+                # 배경색 및 강조
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == 'Top 10 합계'].index, :], **{'background-color': '#E3F2FD', 'font-weight': 'bold'})
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == '의약품비 전체'].index, :], **{'background-color': '#F1F8E9', 'font-weight': 'bold'})
                 return styler
 
-            # 표 출력 (height 설정을 통해 스크롤 제거)
+            # [수정] height를 495로 조정하여 하단 빈 줄 제거
             st.dataframe(
                 style_medicine_table(table_df[['Vendor', 'Amount_Prev', 'Amount_Curr', 'Diff', 'Growth']].style),
                 hide_index=True, 
                 use_container_width=True,
-                height=525, # 13행 기준 스크롤 생기지 않는 높이
+                height=495, 
                 column_config={
                     "Vendor": "거래처명",
                     "Amount_Prev": st.column_config.Column("전월", width="small"), 
@@ -244,7 +236,7 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
             )
     except Exception as e:
         st.info(f"데이터 분석 준비 중... ({e})")
-
+        
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
 selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
