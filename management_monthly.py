@@ -67,15 +67,15 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억", delta_p)
     m3.metric(f"📊 {months[-1]} 이익률", f"{curr_r:.1f}%", delta_r)
 
-# 실적 차트 함수 (매출 막대 색상 적용)
+# 실적 차트 함수 (영업이익에 BU 고유색상 적용)
 def draw_performance_chart(title, months, s, p, c):
     st.markdown(f"### {title}")
     fig = go.Figure()
-    # 매출: 막대 (BU 고유 색상 적용)
-    fig.add_trace(go.Bar(x=months, y=s, name="매출액", marker_color=c, opacity=0.7))
-    # 영업이익: 꺾은선 (매출보다 진한 색상 또는 고유 색상 유지)
+    # 매출: 막대 (연한 회색으로 고정)
+    fig.add_trace(go.Bar(x=months, y=s, name="매출액", marker_color="#D3D3D3", opacity=0.7))
+    # 영업이익: 꺾은선 (BU 고유 색상 적용)
     fig.add_trace(go.Scatter(x=months, y=p, name="영업이익", mode="lines+markers+text", 
-                             line=dict(color="#FF4B4B", width=3.5), text=[f"{v/100:.1f}억" for v in p], textposition="top center"))
+                             line=dict(color=c, width=4), text=[f"{v/100:.1f}억" for v in p], textposition="top center"))
     
     # 매출 총액 텍스트 (막대 위)
     fig.add_trace(go.Scatter(x=months, y=s, mode="text", text=[f"{v/100:.1f}억" for v in s], 
@@ -129,17 +129,17 @@ try:
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
-            # 병원 실적 차트 색상 통일
+            # 병원 실적 차트
             h_sales = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
             draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, h_sales, h_profit, conf["color"])
 
-            # 법인 실적 차트 색상 통일
+            # 법인 실적 차트
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
             p_profit = [get_val(dfs[k], conf["법인영익"], maps[k][m]) for m in sel_months]
             draw_performance_chart(f"🤝 {k} 앤파트너스 실적", sel_months, p_sales, p_profit, conf["color"])
 
-            # 5대 비용 분석 (기존 유지)
+            # 5대 비용 분석
             st.divider(); st.subheader(f"📑 {k} 5대 핵심 비용 분석")
             c1, c2 = st.columns(2)
             with c1:
