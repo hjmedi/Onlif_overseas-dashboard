@@ -6,10 +6,8 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout="wide")
 
 # --- [컬러 테마 정의] ---
-# 병원 항목용 파스텔톤
 HOSP_ITEM_COLORS = ["#8ECAE6", "#219EBC", "#457B9D", "#A8DADC", "#F1FAEE"]
-# 전체 실적용 (병원 vs 앤파)
-TOTAL_SPLIT_COLORS = {"병원": "#219EBC", "앤파트너스": "#F4A261"}
+TOTAL_SPLIT_COLORS = {"병원": "#219EBC", "앤파트너스": "#F4A261", "그룹 매출": "#E91E63", "법인 합산": "#9C27B0"}
 
 CONFIG = {
     "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 51, "color": "#333333"},
@@ -17,7 +15,7 @@ CONFIG = {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
         "인건비_병원": 32, "인건비_앤파": 40, "의약품비": 33, "상품매입": 36, "광고비": 42,
-        "color": "#1f77b4", "items": {} 
+        "color": "#1f77b4", "hosp_items": {} 
     },
     "르샤인": {
         "sheet": "르샤인_실적", "header": 5,
@@ -64,22 +62,15 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
     st.markdown(f"### {title}")
     fig = go.Figure()
 
-    # 1. 누적 막대 (매출)
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
-        
-        # 색상 결정
         if use_custom_palette:
             color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)]
         else:
             color = TOTAL_SPLIT_COLORS.get(label, "#D3D3D3")
             
-        fig.add_trace(go.Bar(
-            x=months, y=values, name=label, 
-            marker_color=color, marker_line_width=0
-        ))
+        fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0))
 
-    # 2. 영업이익 꺾은선
     fig.add_trace(go.Scatter(
         x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
         line=dict(color=line_color, width=3.5), 
@@ -87,11 +78,9 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
         text=[f"{v/100:.1f}억" for v in profit_list], textposition="top center"
     ))
     
-    # 3. 총매출 텍스트
     if "Total" in sales_dict:
-        total_sales = sales_dict["Total"]
         fig.add_trace(go.Scatter(
-            x=months, y=total_sales, mode="text", text=[f"{v/100:.1f}억" for v in total_sales], 
+            x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
             textposition="top center", showlegend=False, hoverinfo='none',
             textfont=dict(color="#444444", size=11)
         ))
@@ -105,7 +94,6 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
     fig.add_hline(y=0, line_dash="dash", line_color="#CCCCCC")
     st.plotly_chart(fig, use_container_width=True)
 
-# (draw_expense_chart, display_metrics 등 유틸리티 함수 생략 - 이전 동일 로직 유지)
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_color, bar_color):
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
     avg_ratio = sum(ratios) / len(ratios) if ratios else 0
@@ -142,22 +130,29 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
+        # 전체 연결
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         display_metrics(sel_months, ts, tp)
         draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#E91E63")
         
+        st.divider()
+        # 법인 연결 (HQ + 앤파 합계)
+        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
+        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)")
+        display_metrics(sel_months, cs, cp)
+        draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#9C27B0")
+        
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
-        
         main_s_row, main_p_row = (conf["매출"], conf["영익"]) if k == "메디빌더" else (conf["전체매출"], conf["전체영익"])
         sum_s = [get_val(dfs[k], main_s_row, maps[k][m]) for m in sel_months]
         sum_p = [get_val(dfs[k], main_p_row, maps[k][m]) for m in sel_months]
         display_metrics(sel_months, sum_s, sum_p)
 
-        # [1] 전체 실적 (병원 vs 앤파 2분할)
         if k in ["르샤인", "오블리브"]:
             anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
             hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
@@ -167,7 +162,6 @@ try:
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
-            # [2] 병원 상세 실적 (센터/항목별 4분할)
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             
@@ -179,7 +173,6 @@ try:
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원": h_total_s}, h_profit, conf["color"])
 
-            # [3] 앤파 실적
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
             p_profit = [get_val(dfs[k], conf["법인영익"], maps[k][m]) for m in sel_months]
             draw_performance_chart(f"🤝 {k} 앤파트너스 실적", sel_months, {"Total": p_sales, "앤파트너스": p_sales}, p_profit, conf["color"])
