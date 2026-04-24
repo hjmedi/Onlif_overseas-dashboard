@@ -82,12 +82,9 @@ def draw_expense_chart(title, months, sales_list, exp_list, exp_label, color):
     avg_ratio = sum(ratios) / len(ratios) if ratios else 0
     
     fig = go.Figure()
-    # 비용 금액 (막대)
     fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=color, opacity=0.4, text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"))
-    # 매출 대비 비중 (꺾은선)
     fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color="#FF5722", width=2.5), text=[f"{v:.1f}%" for v in ratios], textposition="top center"))
     
-    # 평균선 추가 (y2축 기준)
     fig.add_hline(y=avg_ratio, line_dash="dot", line_color="#D32F2F", yref="y2", annotation_text=f"평균 {avg_ratio:.1f}%", annotation_position="top left")
 
     fig.update_layout(
@@ -138,14 +135,14 @@ try:
             h_sales = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
             
-            # 5대 비용 차트 배치 (2-2-1 구조)
             c1, c2 = st.columns(2)
             with c1:
                 draw_expense_chart("① 인건비(병원) 분석", sel_months, h_sales, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", "#4B8BBE")
                 draw_expense_chart("③ 의약품비 분석", sel_months, h_sales, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", "#306998")
                 draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_sales, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", "#FFD43B")
             with c2:
-                draw_expense_chart("② 인건비(법인) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(법)", "#6495ED")
+                # 인건비(법인) -> 인건비(앤파)로 레이블 수정
+                draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", "#6495ED")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_sales, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", "#FFE873")
 
 except Exception as e:
