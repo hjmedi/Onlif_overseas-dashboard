@@ -147,12 +147,16 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
     st.divider()
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
-        # [1] 데이터 기본 정제
+        # [1] 데이터 기본 정제 (이미 B열에 마이너스가 반영되어 있으므로 단순 로드)
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
+        
+        # 필터링 및 숫자 변환
         df = df[(df['Category'] == "03.매출원가-의약품비") & (df['Biz'].str.contains(biz_name, na=False))]
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
+        
+        # [수정] 별도의 상계 부호 반전 없이 그대로 사용 (이미 마이너스이므로 합산 시 자동 차감됨)
         
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
@@ -206,7 +210,6 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
             st.write("📊 **의약품비 변동 상세 (단위: 백만 원)**")
             
             def style_medicine_table(styler):
-                # 비중 행은 % 기호, 일반 행은 소수점 포맷
                 idx_ratio = table_df[table_df['Vendor'] == 'Top 10 비중'].index
                 idx_others = table_df[table_df['Vendor'] != 'Top 10 비중'].index
                 
@@ -215,12 +218,10 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
                 styler.format(subset=(idx_ratio, ['Amount_Prev', 'Amount_Curr', 'Diff']), formatter="{:.1f}%")
                 styler.format(subset='Growth', formatter="{:+.1f}%")
                 
-                # 배경색 및 강조
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == 'Top 10 합계'].index, :], **{'background-color': '#E3F2FD', 'font-weight': 'bold'})
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == '의약품비 전체'].index, :], **{'background-color': '#F1F8E9', 'font-weight': 'bold'})
                 return styler
 
-            # [수정] height를 495로 조정하여 하단 빈 줄 제거
             st.dataframe(
                 style_medicine_table(table_df[['Vendor', 'Amount_Prev', 'Amount_Curr', 'Diff', 'Growth']].style),
                 hide_index=True, 
