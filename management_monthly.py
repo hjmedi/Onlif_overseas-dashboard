@@ -15,7 +15,7 @@ CONFIG = {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
         "인건비_병원": 32, "인건비_앤파": 40, "의약품비": 33, "상품매입": 36, "광고비": 42,
-        "color": "#1f77b4", "hosp_items": {} 
+        "color": "#1f77b4", "hosp_items": {}, "biz_name": "온리프"
     },
     "르샤인": {
         "sheet": "르샤인_실적", "header": 5,
@@ -23,7 +23,7 @@ CONFIG = {
         "인건비_병원": 40, "인건비_앤파": 48, "의약품비": 41, "상품매입": 44, "광고비": 50,
         "color": "#006400",
         "hosp_items": {"피부체형": 87, "문제성발톱": 88, "재활의학": 89, "공단매출": 91},
-        "anpa_row": 38 
+        "anpa_row": 38, "biz_name": "르샤인"
     },
     "오블리브": {
         "sheet": "오블리브(송도)_실적", "header": 6,
@@ -31,11 +31,37 @@ CONFIG = {
         "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
         "color": "#8B4513",
         "hosp_items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88},
-        "anpa_row": 36
+        "anpa_row": 36, "biz_name": "오블리브"
     }
 }
 
-# --- [데이터 로드] ---
+# --- [인사이트 생성 함수들] ---
+def generate_headline(months, sales, profits, name, is_item=False):
+    if len(months) < 2: return None
+    curr_s, prev_s = sales[-1], sales[-2]
+    curr_p, prev_p = profits[-1], profits[-2]
+    s_diff = (curr_s / prev_s - 1) * 100 if prev_s != 0 else 0
+    messages = []
+    if s_diff >= 10: messages.append(f"📈 **{name} 성장**: 전월비 **{s_diff:.1f}%** 급증")
+    elif s_diff <= -10: messages.append(f"📉 **{name} 하락**: 전월비 **{abs(s_diff):.1f}%** 감소")
+    if not is_item:
+        curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
+        prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
+        r_diff = curr_r - prev_r
+        if r_diff >= 5: messages.append(f"✨ **수익 최적화**: 이익률 **{r_diff:.1f}%p** 개선")
+        elif r_diff <= -5: messages.append(f"⚠️ **비용 주의**: 이익률 **{abs(r_diff):.1f}%p** 악화")
+    return " | ".join(messages) if messages else None
+
+def generate_item_headlines(months, item_dict):
+    if len(months) < 2: return []
+    top_issues = []
+    for name, values in item_dict.items():
+        if name == "Total": continue
+        diff = (values[-1] / values[-2] - 1) * 100 if values[-2] > 0 else 0
+        if diff >= 15: top_issues.append(f"🔥 **{name}** 항목이 **{diff:.1f}%** 급성장하며 매출 견인")
+        elif diff <= -15: top_issues.append(f"🧊 **{name}** 항목 매출이 전월비 **{abs(diff):.1f}%** 하락")
+    return top_issues
+
 @st.cache_data
 def load_all_data():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
@@ -65,19 +91,6 @@ def get_val(df, row, col):
     if col is None or pd.isna(col): return 0
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
-
-# --- [시각화/인사이트 함수 생략 - 동일 유지] ---
-def generate_headline(months, sales, profits, name):
-    if len(months) < 2: return None
-    s_diff = (sales[-1] / sales[-2] - 1) * 100 if sales[-2] != 0 else 0
-    curr_r = (profits[-1] / sales[-1] * 100) if sales[-1] != 0 else 0
-    prev_r = (profits[-2] / sales[-2] * 100) if sales[-2] != 0 else 0
-    r_diff = curr_r - prev_r
-    msg = []
-    if s_diff >= 10: msg.append(f"📈 **{name} 성장**: 전월비 **{s_diff:.1f}%** 상승")
-    elif s_diff <= -10: msg.append(f"📉 **{name} 하락**: 전월비 **{abs(s_diff):.1f}%** 감소")
-    if r_diff >= 5: msg.append(f"✨ **수익 최적화**: 이익률 **{r_diff:.1f}%p** 개선")
-    return " | ".join(msg) if msg else None
 
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
     st.markdown(f"### {title}")
@@ -117,11 +130,10 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
     m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
-# --- [수정: 의약품비 거래처 분석 - 증감율 계산 로직 수정] ---
+# --- [수정: 의약품비 거래처 분석 - 증감율 계산 로직 수정 및 비중 추가] ---
 def display_vendor_analysis_final(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
-    st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
         # A(월), B(금액), C(사업자), D(계정), Q(거래처) 추출
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
@@ -134,16 +146,25 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
         
+        # [추가] 당월 전체 의약품비 합계 계산 (비중 산출용)
+        total_pharm_amt = df[df['Month'] == curr_m]['Amount'].sum()
+        
         curr_df = df[df['Month'] == curr_m].groupby('Vendor')['Amount'].sum().reset_index()
         prev_df = df[df['Month'] == prev_m].groupby('Vendor')['Amount'].sum().reset_index()
         
         merged = pd.merge(curr_df, prev_df, on='Vendor', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
-        
-        # [수정] 차이 금액 및 증감율 로직 (정확한 백분율 계산)
         merged['Diff'] = merged['Amount_Curr'] - merged['Amount_Prev']
         merged['Growth'] = merged.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] > 0 else (100.0 if x['Amount_Curr'] > 0 else 0.0), axis=1)
         
         top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10).reset_index(drop=True)
+        
+        # [추가] Top 10 합계 비중 계산
+        top10_sum = top10['Amount_Curr'].sum()
+        top10_ratio = (top10_sum / total_pharm_amt * 100) if total_pharm_amt > 0 else 0
+        
+        # 제목에 비중 표기 추가
+        st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10) - 당월 비중: {top10_ratio:.1f}%")
+        
         top10['Vendor_Rank'] = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
         
         c1, c2 = st.columns([3, 2])
@@ -160,7 +181,6 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
             display_df['전월'] = display_df['Amount_Prev'] / 1000000
             display_df['당월'] = display_df['Amount_Curr'] / 1000000
             display_df['차이'] = display_df['Diff'] / 1000000
-            # 표기용 증감율 (Growth 값 그대로 사용)
             display_df['증감율'] = display_df['Growth']
             
             st.dataframe(
@@ -172,12 +192,12 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
                     "전월": st.column_config.NumberColumn(format="%.1f"), 
                     "당월": st.column_config.NumberColumn(format="%.1f"), 
                     "차이": st.column_config.NumberColumn(format="%+.1f"), 
-                    "증감율": st.column_config.NumberColumn(format="%.1f%%") # % 기호 자동 생성
+                    "증감율": st.column_config.NumberColumn(format="%.1f%%")
                 }
             )
     except: st.info("데이터 부족")
 
-# --- [메인 로직] ---
+# --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
 selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
 
@@ -238,7 +258,7 @@ try:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
             
-            # [최하단 추가] 의약품비 전표 데이터 기반 상세 분석 (biz_name 활용)
+            # [최하단 추가] 의약품비 전표 데이터 기반 상세 분석 (Top 10 비중 표기 포함)
             biz_name = conf.get("biz_name", k)
             raw_data = load_raw_data_only()
             display_vendor_analysis_final(raw_data, end_m, biz_name)
