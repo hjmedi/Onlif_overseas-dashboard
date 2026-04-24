@@ -147,24 +147,35 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
     st.divider()
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
-        # [1] 데이터 기본 정제 (이미 B열에 마이너스가 반영되어 있으므로 단순 로드)
+        # [1] 데이터 기본 정제
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
         
-        # 필터링 및 숫자 변환
-        df = df[(df['Category'] == "03.매출원가-의약품비") & (df['Biz'].str.contains(biz_name, na=False))]
+        # [필터 수정] 계정과목명은 정확히 일치해야 함
+        target_category = "03.매출원가-의약품비"
+        df = df[(df['Category'] == target_category) & (df['Biz'].str.contains(biz_name, na=False))]
+        
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
         
-        # [수정] 별도의 상계 부호 반전 없이 그대로 사용 (이미 마이너스이므로 합산 시 자동 차감됨)
+        # [수정 포인트] 거래처명 정규화 (Normalization)
+        def normalize_vendor(name):
+            name = str(name).strip() # 앞뒤 공백 제거
+            if name.startswith('(주)'): name = name[3:].strip() # 앞에 붙은 (주) 제거 후 공백 제거
+            if name.endswith('(주)'): name = name[:-3].strip()  # 뒤에 붙은 (주) 제거 후 공백 제거
+            return name
+
+        df['Vendor_Clean'] = df['Vendor'].apply(normalize_vendor)
         
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
         
-        # [2] 거래처별/전체 집계
-        curr_df = df[df['Month'] == curr_m].groupby('Vendor')['Amount'].sum().reset_index()
-        prev_df = df[df['Month'] == prev_m].groupby('Vendor')['Amount'].sum().reset_index()
-        merged = pd.merge(curr_df, prev_df, on='Vendor', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
+        # [2] 정제된 거래처명(Vendor_Clean)으로 집계
+        curr_df = df[df['Month'] == curr_m].groupby('Vendor_Clean')['Amount'].sum().reset_index()
+        prev_df = df[df['Month'] == prev_m].groupby('Vendor_Clean')['Amount'].sum().reset_index()
+        
+        merged = pd.merge(curr_df, prev_df, on='Vendor_Clean', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
+        merged.rename(columns={'Vendor_Clean': 'Vendor'}, inplace=True)
         
         total_curr = df[df['Month'] == curr_m]['Amount'].sum()
         total_prev = df[df['Month'] == prev_m]['Amount'].sum()
@@ -182,25 +193,28 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
              'Amount_Prev': (top10_prev_sum/total_prev*100) if total_prev > 0 else 0}
         ]
         
-        top10['Vendor'] = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
-        display_df = pd.concat([top10, pd.DataFrame(summary_data)], ignore_index=True)
+        # 그래프용 벤더명 (순위 포함)
+        graph_vendors = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
+        
+        top10_for_table = top10.copy()
+        top10_for_table['Vendor'] = graph_vendors
+        display_df = pd.concat([top10_for_table, pd.DataFrame(summary_data)], ignore_index=True)
         display_df['Diff'] = display_df['Amount_Curr'] - display_df['Amount_Prev']
         display_df['Growth'] = display_df.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] > 0 else 0, axis=1)
 
-        # [4] 단위 변환 (금액 행만)
+        # [4] 단위 변환
         for col in ['Amount_Prev', 'Amount_Curr', 'Diff']:
             mask = display_df['Vendor'] != 'Top 10 비중'
             display_df.loc[mask, col] = display_df.loc[mask, col] / 1000000
 
         table_df = display_df.copy()
         
-        # [5] 레이아웃 및 스타일 적용
+        # [5] 레이아웃 및 스타일
         c1, c2 = st.columns([1.1, 1])
-        
         with c1:
             fig = go.Figure()
-            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
-            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
+            fig.add_trace(go.Bar(x=graph_vendors, y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
+            fig.add_trace(go.Bar(x=graph_vendors, y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
             fig.update_layout(height=495, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45), 
                               yaxis=dict(title="백만 원"), margin=dict(l=10, r=10, t=30, b=80),
                               legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
@@ -208,25 +222,20 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
             
         with c2:
             st.write("📊 **의약품비 변동 상세 (단위: 백만 원)**")
-            
             def style_medicine_table(styler):
                 idx_ratio = table_df[table_df['Vendor'] == 'Top 10 비중'].index
                 idx_others = table_df[table_df['Vendor'] != 'Top 10 비중'].index
-                
                 styler.format(subset=(idx_others, ['Amount_Prev', 'Amount_Curr']), formatter="{:.1f}")
                 styler.format(subset=(idx_others, 'Diff'), formatter="{:+.1f}")
                 styler.format(subset=(idx_ratio, ['Amount_Prev', 'Amount_Curr', 'Diff']), formatter="{:.1f}%")
                 styler.format(subset='Growth', formatter="{:+.1f}%")
-                
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == 'Top 10 합계'].index, :], **{'background-color': '#E3F2FD', 'font-weight': 'bold'})
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == '의약품비 전체'].index, :], **{'background-color': '#F1F8E9', 'font-weight': 'bold'})
                 return styler
 
             st.dataframe(
                 style_medicine_table(table_df[['Vendor', 'Amount_Prev', 'Amount_Curr', 'Diff', 'Growth']].style),
-                hide_index=True, 
-                use_container_width=True,
-                height=495, 
+                hide_index=True, use_container_width=True, height=495, 
                 column_config={
                     "Vendor": "거래처명",
                     "Amount_Prev": st.column_config.Column("전월", width="small"), 
