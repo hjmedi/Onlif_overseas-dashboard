@@ -35,7 +35,33 @@ CONFIG = {
     }
 }
 
-# --- [데이터 로드 함수] ---
+# --- [인사이트 생성 함수들] ---
+def generate_headline(months, sales, profits, name, is_item=False):
+    if len(months) < 2: return None
+    curr_s, prev_s = sales[-1], sales[-2]
+    curr_p, prev_p = profits[-1], profits[-2]
+    s_diff = (curr_s / prev_s - 1) * 100 if prev_s != 0 else 0
+    messages = []
+    if s_diff >= 10: messages.append(f"📈 **{name} 성장**: 전월비 **{s_diff:.1f}%** 급증")
+    elif s_diff <= -10: messages.append(f"📉 **{name} 하락**: 전월비 **{abs(s_diff):.1f}%** 감소")
+    if not is_item:
+        curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
+        prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
+        r_diff = curr_r - prev_r
+        if r_diff >= 5: messages.append(f"✨ **수익 최적화**: 이익률 **{r_diff:.1f}%p** 개선")
+        elif r_diff <= -5: messages.append(f"⚠️ **비용 주의**: 이익률 **{abs(r_diff):.1f}%p** 악화")
+    return " | ".join(messages) if messages else None
+
+def generate_item_headlines(months, item_dict):
+    if len(months) < 2: return []
+    top_issues = []
+    for name, values in item_dict.items():
+        if name == "Total": continue
+        diff = (values[-1] / values[-2] - 1) * 100 if values[-2] > 0 else 0
+        if diff >= 15: top_issues.append(f"🔥 **{name}** 항목이 **{diff:.1f}%** 급성장하며 매출 견인")
+        elif diff <= -15: top_issues.append(f"🧊 **{name}** 항목 매출이 전월비 **{abs(diff):.1f}%** 하락")
+    return top_issues
+
 @st.cache_data
 def load_all_data():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
@@ -53,6 +79,7 @@ def load_all_data():
         except: st.error(f"시트 '{conf['sheet']}' 로드 실패")
     return data_frames, col_maps
 
+# [추가] 전표 데이터 독립 로드 (기존 실적 데이터와 격리)
 @st.cache_data
 def load_raw_data_only():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
@@ -62,54 +89,65 @@ def load_raw_data_only():
     except:
         return pd.DataFrame()
 
-# --- [유틸리티 함수] ---
 def get_val(df, row, col):
     if col is None or pd.isna(col): return 0
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
-def generate_headline(months, sales, profits, name, is_item=False):
-    if len(months) < 2: return None
-    curr_s, prev_s = sales[-1], sales[-2]
-    s_diff = (curr_s / prev_s - 1) * 100 if prev_s != 0 else 0
-    messages = []
-    if s_diff >= 10: messages.append(f"📈 **{name} 성장**: 전월비 **{s_diff:.1f}%** 급증")
-    elif s_diff <= -10: messages.append(f"📉 **{name} 하락**: 전월비 **{abs(s_diff):.1f}%** 감소")
-    return " | ".join(messages) if messages else None
-
-# --- [시각화 함수] ---
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
     st.markdown(f"### {title}") 
+    if use_custom_palette:
+        item_issues = generate_item_headlines(months, sales_dict)
+        if item_issues:
+            with st.expander("📌 의원 센터별 주요 변동 이슈 확인"):
+                for issue in item_issues: st.write(issue)
     fig = go.Figure()
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
         color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)] if use_custom_palette else TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
-        fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, opacity=0.85))
-    
+        fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0, opacity=0.85))
+    total_sales = sales_dict.get("Total", [0]*len(months))
+    profit_labels = [f"{p/100:.1f}억<br>({(p/s*100) if s!=0 else 0:.1f}%)" for s, p in zip(total_sales, profit_list)]
     fig.add_trace(go.Scatter(x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
-                             line=dict(color=line_color, width=3), text=[f"{p:.1f}M" for p in profit_list], textposition="top center"))
-    
-    fig.update_layout(height=450, barmode='stack', plot_bgcolor="white", hovermode="x unified",
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                             line=dict(color=line_color, width=3.5), marker=dict(size=8, symbol="circle", line=dict(color='white', width=2)),
+                             text=profit_labels, textposition="top center", textfont=dict(size=11, color=line_color)))
+    if "Total" in sales_dict:
+        fig.add_trace(go.Scatter(x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
+                                 textposition="top center", showlegend=False, hoverinfo='none', textfont=dict(color="#444444", size=11)))
+    fig.update_layout(height=480, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                      yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False), plot_bgcolor="white", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_color, bar_color):
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
+    avg_ratio = sum(ratios) / len(ratios) if ratios else 0
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=bar_color, opacity=0.8))
-    fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers", line=dict(color=line_color, width=2)))
-    fig.update_layout(title=title, height=350, yaxis2=dict(overlaying="y", side="right", range=[0, max(ratios)*1.5 if ratios else 30]),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), plot_bgcolor="white")
+    fig.add_trace(go.Bar(x=months, y=exp_list, name=f"{exp_label} 금액", marker_color=bar_color, opacity=0.8, marker_line_color=bar_color, marker_line_width=1, text=[f"{v/100:.1f}억" for v in exp_list], textposition="outside"))
+    fig.add_trace(go.Scatter(x=months, y=ratios, name=f"{exp_label} 비중(%)", yaxis="y2", mode="lines+markers+text", line=dict(color=line_color, width=2.5), text=[f"{v:.1f}%" for v in ratios], textposition="top center"))
+    fig.add_hline(y=avg_ratio, line_dash="dot", line_color="#D32F2F", yref="y2", annotation_text=f"평균 {avg_ratio:.1f}%", annotation_position="top left")
+    fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(size=18)), height=380, margin=dict(l=10,r=10,t=60,b=10), yaxis=dict(title="금액 (백만 원)", showgrid=False), yaxis2=dict(title="비중 (%)", overlaying="y", side="right", range=[0, max(ratios)*1.6 if ratios else 30], showgrid=False), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), xaxis=dict(type='category'), plot_bgcolor="white", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
-# [수정됨] 의약품비 전표 분석 (시각화 및 표 개선 버전)
+def display_metrics(months, sales_list, profit_list):
+    if len(sales_list) < 1: return
+    curr_s, prev_s = sales_list[-1], sales_list[-2] if len(sales_list)>1 else sales_list[-1]
+    curr_p = profit_list[-1]
+    m1, m2, m3 = st.columns(3)
+    m1.metric(f"📅 {months[-1]} 매출", f"{curr_s/100:.1f}억", f"{(curr_s-prev_s)/100:+.1f}억")
+    m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
+    m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
+
+# [수정] 의약품비 전표 분석 시각화 개선 함수
 def display_vendor_analysis_standalone(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
+        # A(0):월, B(1):금액, C(2):사업자, D(3):계정항목, Q(16):거래처명
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
+        
+        # 필터링: 의약품비 전표만 + 해당 BU
         df = df[(df['Category'] == "03.매출원가-의약품비") & (df['Biz'].str.contains(biz_name, na=False))]
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
@@ -124,87 +162,98 @@ def display_vendor_analysis_standalone(raw_df, month, biz_name):
         merged['Diff'] = merged['Amount_Curr'] - merged['Amount_Prev']
         merged['Growth'] = (merged['Diff'] / merged['Amount_Prev'] * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
         
-        top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10).reset_index(drop=True)
-        # 벤더명 앞에 숫자(순위) 추가
-        top10['Vendor'] = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
+        top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10)
         
         c1, c2 = st.columns([3, 2])
         with c1:
-            # 그룹형 막대 그래프로 변경
+            # 1. 그래프 개선: 그룹형 막대 차트 (전월 vs 당월)
             fig = go.Figure()
-            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
-            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
-            fig.update_layout(height=450, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45),
-                              yaxis=dict(title="금액 (백만 원)"), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월 금액', marker_color='#BDBDBD', opacity=0.7))
+            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월 금액', marker_color='#219EBC'))
+            
+            fig.update_layout(height=420, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45),
+                              yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"),
+                              legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             st.plotly_chart(fig, use_container_width=True)
             
         with c2:
-            st.write("📊 **의약품비 변동 내역 상세 (단위: 백만 원)**")
+            st.write("📊 **의약품비 변동 내역 상세**")
+            # 2. 표 개선: 순서(전월, 당월, 차이금액, 증감율) 조정
             display_df = top10.copy()
-            # M 제거 및 숫자 포맷팅
-            display_df['전월'] = (display_df['Amount_Prev'] / 1000000).map('{:,.1f}'.format)
-            display_df['당월'] = (display_df['Amount_Curr'] / 1000000).map('{:,.1f}'.format)
-            display_df['차이금액'] = (display_df['Diff'] / 1000000).map('{:+,.1f}'.format)
-            display_df['증감율'] = display_df['Growth'].map('{:+.1f}%'.format)
+            display_df['전월'] = display_df['Amount_Prev'].apply(lambda x: f"{x/1000000:.1f}M")
+            display_df['당월'] = display_df['Amount_Curr'].apply(lambda x: f"{x/1000000:.1f}M")
+            display_df['차이금액'] = display_df['Diff'].apply(lambda x: f"{x/1000000:+.1f}M")
+            display_df['증감율'] = display_df['Growth'].apply(lambda x: f"{x:+.1f}%")
             
-            # 표 컬럼 순서 및 우측 정렬 설정
-            st.dataframe(
-                display_df[['Vendor', '전월', '당월', '차이금액', '증감율']],
-                hide_index=True,
-                use_container_width=True,
-                column_config={
-                    "전월": st.column_config.Column(width="small"),
-                    "당월": st.column_config.Column(width="small"),
-                    "차이금액": st.column_config.Column(width="small"),
-                    "증감율": st.column_config.Column(width="small")
-                }
-            )
-            # 숫자를 오른쪽으로 정렬하기 위한 스타일 커스텀
-            st.markdown("""<style> div[data-testid="stDataFrame"] td { text-align: right !important; } </style>""", unsafe_allow_html=True)
+            st.dataframe(display_df[['Vendor', '전월', '당월', '차이금액', '증감율']], hide_index=True, use_container_width=True)
     except:
-        st.info("데이터 분석 중 오류가 발생했거나 해당 월 데이터가 없습니다.")
+        st.info("해당 BU의 의약품비 전표 데이터가 분석에 충분하지 않습니다.")
 
-# --- [메인 실행부] ---
+# --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
 selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
 
 try:
     dfs, maps = load_all_data()
     all_months = list(maps["온리프"].keys())
-    start_m, end_m = st.sidebar.select_slider("기간", options=all_months, value=(all_months[0], all_months[-1]))
+    start_m, end_m = st.sidebar.select_slider("기간", options=all_months, value=(all_months[0], all_months[-1]), label_visibility="collapsed")
     sel_months = all_months[all_months.index(start_m) : all_months.index(end_m) + 1]
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        draw_performance_chart("📊 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        h_line = generate_headline(sel_months, ts, tp, "그룹 전체")
+        if h_line: st.success(h_line)
+        display_metrics(sel_months, ts, tp)
+        draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        st.divider()
+        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
+        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        display_metrics(sel_months, cs, cp)
+        draw_performance_chart("🏢 법인 연결(HQ+파트너스)", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
         sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k][m]) for m in sel_months]
         sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k][m]) for m in sel_months]
-        
-        draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "매출": sum_s}, sum_p, conf["color"])
-        
+        h_line = generate_headline(sel_months, sum_s, sum_p, k)
+        if h_line: st.info(h_line)
+        display_metrics(sel_months, sum_s, sum_p)
+        if k in ["르샤인", "오블리브"]:
+            anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
+            hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
+            draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
+        else:
+            draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
-            draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
-            
-            st.divider(); st.subheader(f"📑 {k} 핵심 비용 분석")
+            if conf.get("hosp_items"):
+                h_sales_dict = {"Total": h_total_s}
+                for item_name, item_row in conf["hosp_items"].items(): h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
+                draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
+            else:
+                draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
+            p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
+            p_profit = [get_val(dfs[k], conf["법인영익"], maps[k][m]) for m in sel_months]
+            draw_performance_chart(f"🤝 {k} 앤파트너스 실적", sel_months, {"Total": p_sales, "앤파트너스 매출": p_sales}, p_profit, conf["color"])
+            st.divider(); st.subheader(f"📑 {k} 5대 핵심 비용 분석")
             c1, c2 = st.columns(2)
             with c1:
-                draw_expense_chart("인건비(병원) 분석", sel_months, h_total_s, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비", conf["color"], "#A8DADC")
-                draw_expense_chart("의약품비 분석", sel_months, h_total_s, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", conf["color"], "#457B9D")
+                draw_expense_chart("① 인건비(병원) 분석", sel_months, h_total_s, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", conf["color"], "#A8DADC")
+                draw_expense_chart("③ 의약품비 분석", sel_months, h_total_s, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", conf["color"], "#457B9D")
+                draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_total_s, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", conf["color"], "#F1FAEE")
             with c2:
-                draw_expense_chart("광고선전비 분석", sel_months, h_total_s, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", conf["color"], "#F1FAEE")
+                draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
+                draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
             
-            # 최하단 전표 데이터 분석 섹션
+            # [안전 호출] 모든 기존 로직 종료 후 전표 분석 데이터 독립 로드 및 출력
+            biz_name_map = {"온리프": "온리프", "르샤인": "르샤인", "오블리브": "오블리브"}
             raw_data = load_raw_data_only()
-            display_vendor_analysis_standalone(raw_data, end_m, k)
+            display_vendor_analysis_standalone(raw_data, end_m, biz_name_map.get(k, k))
 
 except Exception as e:
-    st.error(f"데이터 처리 오류: {e}")
+    st.error(f"데이터 처리 중 오류: {e}")
