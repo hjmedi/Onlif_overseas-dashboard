@@ -103,10 +103,22 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
+        
+        # [1] 전체 연결 실적
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        st.info(f"💡 {sel_months[-1]} 기준 그룹 전체 실적 요약")
         display_metrics(sel_months, ts, tp)
-        draw_chart("📊 그룹 전체 연결 실적", sel_months, ts, tp, "#E91E63")
+        draw_chart("📊 그룹 전체 연결 실적 (병원+법인 통합)", sel_months, ts, tp, "#E91E63")
+        
+        st.divider()
+
+        # [2] 법인 연결 실적 (복구됨)
+        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
+        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        st.info(f"🏢 {sel_months[-1]} 기준 법인(HQ+앤파트너스) 연결 실적")
+        display_metrics(sel_months, cs, cp)
+        draw_chart("🏢 법인 연결 실적 (메디빌더 본사 + 각 BU 앤파트너스 합산)", sel_months, cs, cp, "#9C27B0")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
