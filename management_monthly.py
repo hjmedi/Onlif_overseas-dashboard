@@ -15,7 +15,7 @@ CONFIG = {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
         "인건비_병원": 32, "인건비_앤파": 40, "의약품비": 33, "상품매입": 36, "광고비": 42,
-        "color": "#1f77b4", "hosp_items": {}, "biz_name": "온리프" # biz_name 추가
+        "color": "#1f77b4", "hosp_items": {} 
     },
     "르샤인": {
         "sheet": "르샤인_실적", "header": 5,
@@ -23,7 +23,7 @@ CONFIG = {
         "인건비_병원": 40, "인건비_앤파": 48, "의약품비": 41, "상품매입": 44, "광고비": 50,
         "color": "#006400",
         "hosp_items": {"피부체형": 87, "문제성발톱": 88, "재활의학": 89, "공단매출": 91},
-        "anpa_row": 38, "biz_name": "르샤인" # biz_name 추가
+        "anpa_row": 38 
     },
     "오블리브": {
         "sheet": "오블리브(송도)_실적", "header": 6,
@@ -31,7 +31,7 @@ CONFIG = {
         "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
         "color": "#8B4513",
         "hosp_items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88},
-        "anpa_row": 36, "biz_name": "오블리브" # biz_name 추가
+        "anpa_row": 36
     }
 }
 
@@ -78,6 +78,16 @@ def load_all_data():
             col_maps[key] = c_map
         except: st.error(f"시트 '{conf['sheet']}' 로드 실패")
     return data_frames, col_maps
+
+# [추가] 전표 데이터 독립 로드 (기존 실적 데이터와 격리)
+@st.cache_data
+def load_raw_data_only():
+    file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
+    try:
+        df = pd.read_excel(file_name, sheet_name="Raw Data_2026", header=0)
+        return df
+    except:
+        return pd.DataFrame()
 
 def get_val(df, row, col):
     if col is None or pd.isna(col): return 0
@@ -127,25 +137,17 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
     m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
-# --- [신규 추가: 의약품비 전표 분석 전용 함수 (기존 로직과 격리됨)] ---
-@st.cache_data
-def load_raw_data_only():
-    file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
-    try:
-        df = pd.read_excel(file_name, sheet_name="Raw Data_2026", header=0)
-        return df
-    except:
-        return pd.DataFrame()
-
+# [수정] 의약품비 전표 분석 시각화 개선 함수
 def display_vendor_analysis_standalone(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
-        # A(월), B(금액), C(사업자), D(계정), Q(거래처)
+        # A(0):월, B(1):금액, C(2):사업자, D(3):계정항목, Q(16):거래처명
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
-        # D열 필터: "03.매출원가-의약품비"만 추출
+        
+        # 필터링: 의약품비 전표만 + 해당 BU
         df = df[(df['Category'] == "03.매출원가-의약품비") & (df['Biz'].str.contains(biz_name, na=False))]
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
@@ -159,23 +161,33 @@ def display_vendor_analysis_standalone(raw_df, month, biz_name):
         merged = pd.merge(curr_df, prev_df, on='Vendor', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
         merged['Diff'] = merged['Amount_Curr'] - merged['Amount_Prev']
         merged['Growth'] = (merged['Diff'] / merged['Amount_Prev'] * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
+        
         top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10)
         
         c1, c2 = st.columns([3, 2])
         with c1:
+            # 1. 그래프 개선: 그룹형 막대 차트 (전월 vs 당월)
             fig = go.Figure()
+            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월 금액', marker_color='#BDBDBD', opacity=0.7))
             fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월 금액', marker_color='#219EBC'))
-            fig.add_trace(go.Scatter(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월 금액', mode='markers', marker=dict(size=12, color='#FB8500', symbol='diamond')))
-            fig.update_layout(height=400, barmode='group', plot_bgcolor='white', xaxis_tickangle=-45, title="단위: 백만원 (다이아몬드는 전월 실적)")
+            
+            fig.update_layout(height=420, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45),
+                              yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"),
+                              legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             st.plotly_chart(fig, use_container_width=True)
+            
         with c2:
-            st.write("📊 **전월 대비 변동 상세 (Top 10)**")
+            st.write("📊 **의약품비 변동 내역 상세**")
+            # 2. 표 개선: 순서(전월, 당월, 차이금액, 증감율) 조정
             display_df = top10.copy()
-            display_df['Amount_Curr'] = display_df['Amount_Curr'].apply(lambda x: f"{x/1000000:.1f}M")
-            display_df['Diff'] = display_df['Diff'].apply(lambda x: f"{x/1000000:+.1f}M")
-            display_df['Growth'] = display_df['Growth'].apply(lambda x: f"{x:+.1f}%")
-            st.dataframe(display_df[['Vendor', 'Amount_Curr', 'Diff', 'Growth']], hide_index=True, use_container_width=True)
-    except: st.info("해당 월의 의약품비 전표 데이터가 없습니다.")
+            display_df['전월'] = display_df['Amount_Prev'].apply(lambda x: f"{x/1000000:.1f}M")
+            display_df['당월'] = display_df['Amount_Curr'].apply(lambda x: f"{x/1000000:.1f}M")
+            display_df['차이금액'] = display_df['Diff'].apply(lambda x: f"{x/1000000:+.1f}M")
+            display_df['증감율'] = display_df['Growth'].apply(lambda x: f"{x:+.1f}%")
+            
+            st.dataframe(display_df[['Vendor', '전월', '당월', '차이금액', '증감율']], hide_index=True, use_container_width=True)
+    except:
+        st.info("해당 BU의 의약품비 전표 데이터가 분석에 충분하지 않습니다.")
 
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
@@ -238,9 +250,10 @@ try:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
             
-            # [안전 장치] 기존 로직이 다 끝난 후, 전용 데이터를 새로 불러와서 거래처 분석 수행
+            # [안전 호출] 모든 기존 로직 종료 후 전표 분석 데이터 독립 로드 및 출력
+            biz_name_map = {"온리프": "온리프", "르샤인": "르샤인", "오블리브": "오블리브"}
             raw_data = load_raw_data_only()
-            display_vendor_analysis_standalone(raw_data, end_m, conf["biz_name"])
+            display_vendor_analysis_standalone(raw_data, end_m, biz_name_map.get(k, k))
 
 except Exception as e:
     st.error(f"데이터 처리 중 오류: {e}")
