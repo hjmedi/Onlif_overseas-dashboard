@@ -79,13 +79,11 @@ def load_all_data():
         except: st.error(f"시트 '{conf['sheet']}' 로드 실패")
     return data_frames, col_maps
 
-# [추가] 전표 데이터 독립 로드 (기존 실적 데이터와 격리)
 @st.cache_data
 def load_raw_data_only():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
     try:
-        df = pd.read_excel(file_name, sheet_name="Raw Data_2026", header=0)
-        return df
+        return pd.read_excel(file_name, sheet_name="Raw Data_2026", header=0)
     except:
         return pd.DataFrame()
 
@@ -137,57 +135,42 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
     m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
-# [수정] 의약품비 전표 분석 시각화 개선 함수
-def display_vendor_analysis_standalone(raw_df, month, biz_name):
+def display_vendor_analysis_final(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
-        # A(0):월, B(1):금액, C(2):사업자, D(3):계정항목, Q(16):거래처명
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
-        
-        # 필터링: 의약품비 전표만 + 해당 BU
         df = df[(df['Category'] == "03.매출원가-의약품비") & (df['Biz'].str.contains(biz_name, na=False))]
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
-        
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
-        
         curr_df = df[df['Month'] == curr_m].groupby('Vendor')['Amount'].sum().reset_index()
         prev_df = df[df['Month'] == prev_m].groupby('Vendor')['Amount'].sum().reset_index()
-        
         merged = pd.merge(curr_df, prev_df, on='Vendor', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
         merged['Diff'] = merged['Amount_Curr'] - merged['Amount_Prev']
         merged['Growth'] = (merged['Diff'] / merged['Amount_Prev'] * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
-        
-        top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10)
-        
+        top10 = merged.sort_values(by='Amount_Curr', ascending=False).head(10).reset_index(drop=True)
+        top10['Vendor'] = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
         c1, c2 = st.columns([3, 2])
         with c1:
-            # 1. 그래프 개선: 그룹형 막대 차트 (전월 vs 당월)
             fig = go.Figure()
-            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월 금액', marker_color='#BDBDBD', opacity=0.7))
-            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월 금액', marker_color='#219EBC'))
-            
-            fig.update_layout(height=420, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45),
-                              yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"),
-                              legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
+            fig.add_trace(go.Bar(x=top10['Vendor'], y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
+            fig.update_layout(height=450, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45), yaxis=dict(title="백만 원"), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             st.plotly_chart(fig, use_container_width=True)
-            
         with c2:
-            st.write("📊 **의약품비 변동 내역 상세**")
-            # 2. 표 개선: 순서(전월, 당월, 차이금액, 증감율) 조정
+            st.write("📊 **의약품비 변동 상세 (단위: 백만 원)**")
             display_df = top10.copy()
-            display_df['전월'] = display_df['Amount_Prev'].apply(lambda x: f"{x/1000000:.1f}M")
-            display_df['당월'] = display_df['Amount_Curr'].apply(lambda x: f"{x/1000000:.1f}M")
-            display_df['차이금액'] = display_df['Diff'].apply(lambda x: f"{x/1000000:+.1f}M")
-            display_df['증감율'] = display_df['Growth'].apply(lambda x: f"{x:+.1f}%")
-            
-            st.dataframe(display_df[['Vendor', '전월', '당월', '차이금액', '증감율']], hide_index=True, use_container_width=True)
-    except:
-        st.info("해당 BU의 의약품비 전표 데이터가 분석에 충분하지 않습니다.")
+            display_df['전월'] = display_df['Amount_Prev'] / 1000000
+            display_df['당월'] = display_df['Amount_Curr'] / 1000000
+            display_df['차이'] = display_df['Diff'] / 1000000
+            display_df['증감율'] = display_df['Growth'] / 100
+            st.dataframe(display_df[['Vendor', '전월', '당월', '차이', '증감율']], hide_index=True, use_container_width=True,
+                         column_config={"전월": st.column_config.NumberColumn(format="%.1f"), "당월": st.column_config.NumberColumn(format="%.1f"), "차이": st.column_config.NumberColumn(format="%+.1f"), "증감율": st.column_config.NumberColumn(format="%.1f%%")})
+    except: st.info("데이터 부족")
 
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
@@ -233,8 +216,8 @@ try:
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
             if conf.get("hosp_items"):
                 h_sales_dict = {"Total": h_total_s}
-                for item_name, item_row in conf["hosp_items"].items(): h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
-                draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
+                for it_n, it_r in conf["hosp_items"].items(): h_sales_dict[it_n] = [get_val(dfs[k], it_r, maps[k][m]) for m in sel_months]
+                draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], True)
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
@@ -250,10 +233,9 @@ try:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
             
-            # [안전 호출] 모든 기존 로직 종료 후 전표 분석 데이터 독립 로드 및 출력
-            biz_name_map = {"온리프": "온리프", "르샤인": "르샤인", "오블리브": "오블리브"}
+            # 전표 데이터 기반 상세 분석 (마지막에 안전하게 호출)
             raw_data = load_raw_data_only()
-            display_vendor_analysis_standalone(raw_data, end_m, biz_name_map.get(k, k))
+            display_vendor_analysis_final(raw_data, end_m, k)
 
 except Exception as e:
     st.error(f"데이터 처리 중 오류: {e}")
