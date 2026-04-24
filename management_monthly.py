@@ -6,30 +6,27 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="메디빌더 경영 실적 대시보드", layout="wide")
 
 # --- [고정 설정 정보] ---
-# 세련된 컬러 팔레트 정의 (파스텔/뮤트톤)
-COLOR_PALETTE = ["#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", "#A2A2A2"]
-
 CONFIG = {
     "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 51, "color": "#333333"},
     "온리프": {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
         "인건비_병원": 32, "인건비_앤파": 40, "의약품비": 33, "상품매입": 36, "광고비": 42,
-        "color": "#1f77b4", "items": {} 
+        "color": "#1f77b4"
     },
     "르샤인": {
         "sheet": "르샤인_실적", "header": 5,
         "전체매출": 36, "전체영익": 60, "병원매출": 85, "병원영익": 127, "법인매출": 132, "법인영익": 163,
         "인건비_병원": 40, "인건비_앤파": 48, "의약품비": 41, "상품매입": 44, "광고비": 50,
         "color": "#006400",
-        "items": {"피부체형": 87, "문제성발톱": 88, "재활의학": 89, "공단매출": 91, "기기/기타": 38}
+        "앤파_row": 38 # 기타(앤파) 매출 행
     },
     "오블리브": {
         "sheet": "오블리브(송도)_실적", "header": 6,
         "전체매출": 34, "전체영익": 58, "병원매출": 83, "병원영익": 125, "법인매출": 130, "법인영익": 163,
         "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
         "color": "#8B4513",
-        "items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88, "기기/기타": 36}
+        "앤파_row": 36 # 기타(앤파) 매출 행
     }
 }
 
@@ -56,25 +53,23 @@ def get_val(df, row, col):
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
 
-def draw_performance_chart(title, months, sales_dict, profit_list, line_color):
+def draw_performance_chart(title, months, hospital_sales, anpa_sales, profit_list, line_color):
     st.markdown(f"### {title}")
     fig = go.Figure()
 
-    # 1. 항목별 누적 막대 (세련된 파스텔톤 적용)
-    if len(sales_dict) > 1:
-        for idx, (label, values) in enumerate(sales_dict.items()):
-            if label == "Total": continue
-            # 팔레트 색상을 순환하여 적용
-            color = COLOR_PALETTE[idx % len(COLOR_PALETTE)]
-            fig.add_trace(go.Bar(
-                x=months, y=values, name=label, 
-                marker_color=color, marker_line_width=0 # 테두리 제거로 더 깔끔하게
-            ))
-        fig.update_layout(barmode='stack')
-    else:
-        fig.add_trace(go.Bar(x=months, y=sales_dict.get("Total", []), name="매출", marker_color="#D3D3D3", opacity=0.6))
+    # 1. 병원 매출 막대 (뮤트 블루)
+    fig.add_trace(go.Bar(
+        x=months, y=hospital_sales, name="병원 매출", 
+        marker_color="#A8DADC", marker_line_width=0
+    ))
 
-    # 2. 영업이익 꺾은선 (BU 고유색, 선 굵기 및 마커 조정)
+    # 2. 앤파 매출 막대 (뮤트 골드)
+    fig.add_trace(go.Bar(
+        x=months, y=anpa_sales, name="앤파 매출", 
+        marker_color="#F4A261", marker_line_width=0
+    ))
+
+    # 3. 영업이익 꺾은선
     fig.add_trace(go.Scatter(
         x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
         line=dict(color=line_color, width=3), 
@@ -82,8 +77,8 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color):
         text=[f"{v/100:.1f}억" for v in profit_list], textposition="top center"
     ))
     
-    # 3. 총매출 텍스트
-    total_sales = sales_dict.get("Total", [])
+    # 4. 총합 매출 텍스트 (막대 위)
+    total_sales = [h + a for h, a in zip(hospital_sales, anpa_sales)]
     fig.add_trace(go.Scatter(
         x=months, y=total_sales, mode="text", text=[f"{v/100:.1f}억" for v in total_sales], 
         textposition="top center", showlegend=False, hoverinfo='none',
@@ -92,16 +87,17 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color):
 
     fig.update_layout(
         height=450, margin=dict(l=10,r=10,t=40,b=10),
+        barmode='stack', # 누적 막대 설정
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         yaxis=dict(title="금액 (백만 원)", gridcolor="#F0F0F0"), 
         xaxis=dict(type='category', showgrid=False),
-        plot_bgcolor="white", # 배경을 흰색으로 변경하여 색감이 더 잘 살도록
+        plot_bgcolor="white",
         hovermode="x unified"
     )
     fig.add_hline(y=0, line_dash="dash", line_color="#CCCCCC")
     st.plotly_chart(fig, use_container_width=True)
 
-# (draw_expense_chart, display_metrics 함수 등은 이전의 로직을 유지하되 컬러만 세련되게 조정...)
+# (draw_expense_chart, display_metrics 함수 생략 - 이전 세련된 버전 유지)
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_color, bar_color):
     ratios = [(e/s*100 if s!=0 else 0) for s, e in zip(sales_list, exp_list)]
     avg_ratio = sum(ratios) / len(ratios) if ratios else 0
@@ -141,49 +137,45 @@ try:
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         display_metrics(sel_months, ts, tp)
-        draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts}, tp, "#E91E63")
-        st.divider()
-        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
-        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        display_metrics(sel_months, cs, cp)
-        draw_performance_chart("🏢 법인 연결 실적", sel_months, {"Total": cs}, cp, "#9C27B0")
+        draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, ts, [0]*len(ts), tp, "#E91E63")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
+        
         main_s_row, main_p_row = (conf["매출"], conf["영익"]) if k == "메디빌더" else (conf["전체매출"], conf["전체영익"])
         sum_s = [get_val(dfs[k], main_s_row, maps[k][m]) for m in sel_months]
         sum_p = [get_val(dfs[k], main_p_row, maps[k][m]) for m in sel_months]
         display_metrics(sel_months, sum_s, sum_p)
-        draw_performance_chart(f"📊 {k} 전체 실적 추이", sel_months, {"Total": sum_s}, sum_p, conf["color"])
+
+        # 르샤인/오블리브는 병원 vs 앤파(기타) 2색 막대로 분리
+        if k in ["르샤인", "오블리브"]:
+            anpa_s = [get_val(dfs[k], conf["앤파_row"], maps[k][m]) for m in sel_months]
+            hosp_s = [s - a for s, a in zip(sum_s, anpa_s)]
+            draw_performance_chart(f"📊 {k} 전체 실적 추이 (병원 vs 앤파)", sel_months, hosp_s, anpa_s, sum_p, conf["color"])
+        else:
+            draw_performance_chart(f"📊 {k} 전체 실적 추이", sel_months, sum_s, [0]*len(sum_s), sum_p, conf["color"])
 
         if k in ["온리프", "르샤인", "오블리브"]:
             st.divider()
-            h_sales_dict = {"Total": [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]}
-            if conf.get("items"):
-                for item_name, item_row in conf["items"].items():
-                    h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
-            
+            h_sales = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
-            draw_performance_chart(f"🏥 {k} 의원 항목별 매출 및 이익 추이", sel_months, h_sales_dict, h_profit, conf["color"])
+            draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, h_sales, [0]*len(h_sales), h_profit, conf["color"])
 
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
             p_profit = [get_val(dfs[k], conf["법인영익"], maps[k][m]) for m in sel_months]
-            draw_performance_chart(f"🤝 {k} 앤파트너스 실적", sel_months, {"Total": p_sales}, p_profit, conf["color"])
+            draw_performance_chart(f"🤝 {k} 앤파트너스 실적", sel_months, p_sales, [0]*len(p_sales), p_profit, conf["color"])
 
             st.divider(); st.subheader(f"📑 {k} 5대 핵심 비용 분석")
-            h_sales_list = h_sales_dict["Total"]
-            p_sales_list = p_sales
             c1, c2 = st.columns(2)
-            # 비용 분석 차트의 막대 컬러는 가독성을 위해 뮤트톤으로 조정
             with c1:
-                draw_expense_chart("① 인건비(병원) 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", conf["color"], "#A8DADC")
-                draw_expense_chart("③ 의약품비 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", conf["color"], "#457B9D")
-                draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", conf["color"], "#F1FAEE")
+                draw_expense_chart("① 인건비(병원) 분석", sel_months, h_sales, [get_val(dfs[k], conf["인건비_병원"], maps[k][m]) for m in sel_months], "인건비(병)", conf["color"], "#A8DADC")
+                draw_expense_chart("③ 의약품비 분석", sel_months, h_sales, [get_val(dfs[k], conf["의약품비"], maps[k][m]) for m in sel_months], "의약품비", conf["color"], "#457B9D")
+                draw_expense_chart("⑤ 광고선전비 분석", sel_months, h_sales, [get_val(dfs[k], conf["광고비"], maps[k][m]) for m in sel_months], "광고비", conf["color"], "#F1FAEE")
             with c2:
-                draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales_list, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
-                draw_expense_chart("④ 상품매입 분석", sel_months, h_sales_list, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
+                draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
+                draw_expense_chart("④ 상품매입 분석", sel_months, h_sales, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
 
 except Exception as e:
     st.error(f"데이터 처리 중 오류: {e}")
