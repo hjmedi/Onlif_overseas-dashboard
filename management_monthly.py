@@ -35,30 +35,23 @@ CONFIG = {
     }
 }
 
-# [기능] 실적 헤드라인 생성 함수
+# --- [인사이트 생성 함수들] ---
 def generate_headline(months, sales, profits, name, is_item=False):
     if len(months) < 2: return None
     curr_s, prev_s = sales[-1], sales[-2]
     curr_p, prev_p = profits[-1], profits[-2]
-    
     s_diff = (curr_s / prev_s - 1) * 100 if prev_s != 0 else 0
     messages = []
-    
-    # 1. 매출 변동 알림
     if s_diff >= 10: messages.append(f"📈 **{name} 성장**: 전월비 **{s_diff:.1f}%** 급증")
     elif s_diff <= -10: messages.append(f"📉 **{name} 하락**: 전월비 **{abs(s_diff):.1f}%** 감소")
-    
-    # 2. 이익 기반 인사이트 (항목별 매출일 때는 생략 가능)
     if not is_item:
         curr_r = (curr_p / curr_s * 100) if curr_s != 0 else 0
         prev_r = (prev_p / prev_s * 100) if prev_s != 0 else 0
         r_diff = curr_r - prev_r
         if r_diff >= 5: messages.append(f"✨ **수익 최적화**: 이익률 **{r_diff:.1f}%p** 개선")
         elif r_diff <= -5: messages.append(f"⚠️ **비용 주의**: 이익률 **{abs(r_diff):.1f}%p** 악화")
-
     return " | ".join(messages) if messages else None
 
-# [기능] 센터(항목)별 주요 이슈 추출
 def generate_item_headlines(months, item_dict):
     if len(months) < 2: return []
     top_issues = []
@@ -92,7 +85,15 @@ def get_val(df, row, col):
     return (v if pd.notnull(v) else 0) / 1000000
 
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
-    st.markdown(f"### {title}")
+    st.markdown(f"### {title}") # 1. 제목 먼저 출력
+    
+    # [수정] 이슈 확인 메뉴를 제목 바로 아래로 이동
+    if use_custom_palette: # 센터별 상세 차트인 경우에만 체크
+        item_issues = generate_item_headlines(months, sales_dict)
+        if item_issues:
+            with st.expander("📌 의원 센터별 주요 변동 이슈 확인"):
+                for issue in item_issues: st.write(issue)
+
     fig = go.Figure()
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
@@ -144,17 +145,13 @@ try:
         st.title("🌐 그룹 연결 실적 현황")
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) for m in sel_months]
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        
-        h_line = generate_headline(sel_months, ts, tp, "그룹 전체")
+        h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
         if h_line: st.success(h_line)
-        
-        display_metrics(sel_months, ts, tp)
-        draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
+        display_metrics(sel_months, ts, tp); draw_performance_chart("📊 그룹 전체 연결 실적", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
         st.divider()
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)")
-        draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
+        st.subheader("🏢 법인 합산 실적 (HQ + 앤파트너스)"); draw_performance_chart("🏢 법인 연결 실적 추이", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
         
     else:
         st.title(f"🚀 {selected_mode} 경영 리포트")
@@ -162,10 +159,8 @@ try:
         conf = CONFIG[k]
         sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k][m]) for m in sel_months]
         sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k][m]) for m in sel_months]
-        
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
         if h_line: st.info(h_line)
-        
         display_metrics(sel_months, sum_s, sum_p)
 
         if k in ["르샤인", "오블리브"]:
@@ -179,19 +174,9 @@ try:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
-            
-            # [추가] 센터(항목)별 헤드라인 이슈 생성
             if conf.get("hosp_items"):
                 h_sales_dict = {"Total": h_total_s}
-                for item_name, item_row in conf["hosp_items"].items():
-                    h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
-                
-                # 주요 이슈 표시
-                item_issues = generate_item_headlines(sel_months, h_sales_dict)
-                if item_issues:
-                    with st.expander("📌 의원 센터별 주요 변동 이슈 확인"):
-                        for issue in item_issues: st.write(issue)
-                
+                for item_name, item_row in conf["hosp_items"].items(): h_sales_dict[item_name] = [get_val(dfs[k], item_row, maps[k][m]) for m in sel_months]
                 draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
