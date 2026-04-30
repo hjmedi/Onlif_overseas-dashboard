@@ -10,7 +10,7 @@ HOSP_ITEM_COLORS = ["#8ECAE6", "#219EBC", "#457B9D", "#A8DADC", "#F1FAEE"]
 TOTAL_SPLIT_COLORS = {"그룹 매출": "#BDBDBD", "법인 합산": "#D1C4E9", "병원": "#A8DADC", "앤파트너스": "#F4A261"}
 
 CONFIG = {
-    "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 52, "color": "#333333"},
+    "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 52, "color": "#333333"}, # 영익 51 -> 52 수정
     "온리프": {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
@@ -34,7 +34,7 @@ CONFIG = {
         "anpa_row": 36, "biz_name": "오블리브"
     },
     "서울오리진": {
-        "sheet": "오블리브(오리진)_실적",  # <--- 실제 시트명으로 수정
+        "sheet": "오블리브(오리진)_실적", 
         "header": 6,
         "전체매출": 34, "전체영익": 58, "병원매출": 83, "병원영익": 125, "법인매출": 130, "법인영익": 163,
         "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
@@ -106,7 +106,6 @@ def get_val(df, row, col):
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
     st.markdown(f"### {title}") 
     
-    # [복구 완료] 센터별 실적 멘트(Expander) 로직 다시 추가
     if use_custom_palette:
         item_issues = generate_item_headlines(months, sales_dict)
         if item_issues:
@@ -150,51 +149,36 @@ def display_metrics(months, sales_list, profit_list):
     m2.metric(f"💰 {months[-1]} 영업이익", f"{curr_p/100:.1f}억")
     m3.metric(f"📊 {months[-1]} 이익률", f"{(curr_p/curr_s*100):.1f}%")
 
-# --- [의약품비 거래처 분석 - 비중 표기 삭제 최종 버전] ---
 def display_vendor_analysis_final(raw_df, month, biz_name):
     if raw_df.empty: return
     st.divider()
     st.subheader(f"💊 {biz_name} 의약품비 거래처 상세 분석 (Top 10)")
     try:
-        # [1] 데이터 기본 정제
         df = raw_df.iloc[:, [0, 1, 2, 3, 16]].copy()
         df.columns = ['Month', 'Amount', 'Biz', 'Category', 'Vendor']
-        
         target_category = "03.매출원가-의약품비"
         df = df[(df['Category'] == target_category) & (df['Biz'].str.contains(biz_name, na=False))]
-        
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
         
-        # 거래처명 정규화
         def normalize_vendor(name):
             name = str(name).strip()
             if name.startswith('(주)'): name = name[3:].strip()
             if name.endswith('(주)'): name = name[:-3].strip()
             return name
         df['Vendor_Clean'] = df['Vendor'].apply(normalize_vendor)
-        
         curr_m = int(month.split('.')[1])
         prev_m = curr_m - 1 if curr_m > 1 else 12
-        
-        # [2] 거래처별 집계
         curr_df = df[df['Month'] == curr_m].groupby('Vendor_Clean')['Amount'].sum().reset_index()
         prev_df = df[df['Month'] == prev_m].groupby('Vendor_Clean')['Amount'].sum().reset_index()
-        
         merged = pd.merge(curr_df, prev_df, on='Vendor_Clean', how='outer', suffixes=('_Curr', '_Prev')).fillna(0)
         merged.rename(columns={'Vendor_Clean': 'Vendor'}, inplace=True)
-        
         total_curr = df[df['Month'] == curr_m]['Amount'].sum()
         total_prev = df[df['Month'] == prev_m]['Amount'].sum()
-        
-        # [수정 포인트] 당월 금액의 '절댓값' 기준으로 정렬하여 마이너스 큰 금액도 Top 10에 포함
         merged['Abs_Amount'] = merged['Amount_Curr'].abs()
         top10 = merged.sort_values(by='Abs_Amount', ascending=False).head(10).reset_index(drop=True)
-        
         top10_curr_sum = top10['Amount_Curr'].sum()
         top10_prev_sum = top10['Amount_Prev'].sum()
-        
-        # [3] 요약 데이터 구성
         summary_data = [
             {'Vendor': 'Top 10 합계', 'Amount_Curr': top10_curr_sum, 'Amount_Prev': top10_prev_sum},
             {'Vendor': '의약품비 전체', 'Amount_Curr': total_curr, 'Amount_Prev': total_prev},
@@ -202,33 +186,25 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
              'Amount_Curr': (top10_curr_sum/total_curr*100) if total_curr != 0 else 0, 
              'Amount_Prev': (top10_prev_sum/total_prev*100) if total_prev != 0 else 0}
         ]
-        
         graph_vendors = [f"{i+1}. {v}" for i, v in enumerate(top10['Vendor'])]
         top10_for_table = top10.copy()
         top10_for_table['Vendor'] = graph_vendors
         display_df = pd.concat([top10_for_table, pd.DataFrame(summary_data)], ignore_index=True)
         display_df['Diff'] = display_df['Amount_Curr'] - display_df['Amount_Prev']
         display_df['Growth'] = display_df.apply(lambda x: (x['Diff'] / x['Amount_Prev'] * 100) if x['Amount_Prev'] != 0 else 0, axis=1)
-
-        # [4] 단위 변환
         for col in ['Amount_Prev', 'Amount_Curr', 'Diff']:
             mask = display_df['Vendor'] != 'Top 10 비중'
             display_df.loc[mask, col] = display_df.loc[mask, col] / 1000000
-
         table_df = display_df.copy()
-        
-        # [5] 레이아웃 및 스타일
         c1, c2 = st.columns([1.1, 1])
         with c1:
             fig = go.Figure()
-            # 그래프에서는 마이너스 금액도 시각적으로 표현됨
             fig.add_trace(go.Bar(x=graph_vendors, y=top10['Amount_Prev']/1000000, name='전월', marker_color='#BDBDBD'))
             fig.add_trace(go.Bar(x=graph_vendors, y=top10['Amount_Curr']/1000000, name='당월', marker_color='#219EBC'))
             fig.update_layout(height=495, barmode='group', plot_bgcolor='white', xaxis=dict(tickangle=-45), 
                               yaxis=dict(title="백만 원"), margin=dict(l=10, r=10, t=30, b=80),
                               legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             st.plotly_chart(fig, use_container_width=True)
-            
         with c2:
             st.write("📊 **의약품비 변동 상세 (단위: 백만 원)**")
             def style_medicine_table(styler):
@@ -241,7 +217,6 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == 'Top 10 합계'].index, :], **{'background-color': '#E3F2FD', 'font-weight': 'bold'})
                 styler.set_properties(subset=pd.IndexSlice[table_df[table_df['Vendor'] == '의약품비 전체'].index, :], **{'background-color': '#F1F8E9', 'font-weight': 'bold'})
                 return styler
-
             st.dataframe(
                 style_medicine_table(table_df[['Vendor', 'Amount_Prev', 'Amount_Curr', 'Diff', 'Growth']].style),
                 hide_index=True, use_container_width=True, height=495, 
@@ -268,15 +243,38 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"][m]) for m in sel_months]
-        tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
-        h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
+        # 매출 합산 (서울오리진 추가)
+        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + 
+              get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + 
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) + 
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"][m]) for m in sel_months]
+        
+        # 영업이익 합산 (서울오리진 추가 및 메디빌더 중복 더하기 수정)
+        tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + 
+              get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + 
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + 
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"][m]) +
+              get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        
+        h_line = generate_headline(sel_months, ts, tp, "그룹 전체")
         if h_line: st.success(h_line)
         display_metrics(sel_months, ts, tp)
         draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
         st.divider()
-        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
-        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        
+        # 법인 연결 합산 (서울오리진 법인 추가)
+        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + 
+              get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + 
+              get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + 
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) +
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인매출"], maps["서울오리진"][m]) for m in sel_months]
+              
+        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + 
+              get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + 
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + 
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인영익"], maps["서울오리진"][m]) +
+              get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+              
         display_metrics(sel_months, cs, cp)
         draw_performance_chart("🏢 법인 연결(HQ+파트너스)", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
     else:
@@ -288,13 +286,13 @@ try:
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
         if h_line: st.info(h_line)
         display_metrics(sel_months, sum_s, sum_p)
-        if k in ["르샤인", "오블리브"]:
+        if k in ["르샤인", "오블리브", "서울오리진"]:
             anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
             hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
             draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
         else:
             draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
-        if k in ["온리프", "르샤인", "오블리브"]:
+        if k in ["온리프", "르샤인", "오블리브", "서울오리진"]:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
@@ -316,8 +314,6 @@ try:
             with c2:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
-            
-            # [최하단] 의약품비 전표 데이터 상세 분석
             biz_name = conf.get("biz_name", k)
             raw_data = load_raw_data_only()
             display_vendor_analysis_final(raw_data, end_m, biz_name)
