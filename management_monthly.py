@@ -278,8 +278,17 @@ try:
         display_metrics(sel_months, ts, tp)
         draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
         st.divider()
-        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) for m in sel_months]
-        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"], m) + 
+              get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"], m) + 
+              get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"], m) + 
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"], m) +
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인매출"], maps["서울오리진"], m) for m in sel_months]
+              
+        cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"], m) + 
+              get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"], m) + 
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"], m) + 
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인영익"], maps["서울오리진"], m) + 
+              get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"], m) for m in sel_months]
         display_metrics(sel_months, cs, cp)
         draw_performance_chart("🏢 법인 연결(HQ+파트너스)", sel_months, {"Total": cs, "법인 합산": cs}, cp, "#6D597A")
     else:
