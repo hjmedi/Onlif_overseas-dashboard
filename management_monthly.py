@@ -283,7 +283,7 @@ try:
     start_m, end_m = st.sidebar.select_slider("기간", options=all_months, value=(all_months[0], all_months[-1]), label_visibility="collapsed")
     sel_months = all_months[all_months.index(start_m) : all_months.index(end_m) + 1]
 
-    if selected_mode == "연결 실적(통합)":
+if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
         
         # 전체 매출(ts) 합산
