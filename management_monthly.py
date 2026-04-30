@@ -96,10 +96,14 @@ def load_raw_data_only():
     except:
         return pd.DataFrame()
 
-def get_val(df, row, col):
+def get_val(df, row, col_map, month_label):
+    col = col_map.get(month_label)
     if col is None or pd.isna(col): return 0
-    v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
-    return (v if pd.notnull(v) else 0) / 1000000
+    try:
+        v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
+        return (v if pd.notnull(v) else 0) / 1000000
+    except:
+        return 0
 
 # --- [시각화 함수] ---
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
