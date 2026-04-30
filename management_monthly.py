@@ -32,14 +32,6 @@ CONFIG = {
         "color": "#8B4513",
         "hosp_items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88},
         "anpa_row": 36, "biz_name": "오블리브"
-    },
-    "서울오리진": {
-        "sheet": "오블리브(오리진)_실적", "header": 6,
-        "전체매출": 34, "전체영익": 58, "병원매출": 83, "병원영익": 125, "법인매출": 130, "법인영익": 163,
-        "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
-        "color": "#E63946",
-        "hosp_items": {"피부체형": 85, "문제성발톱": 86, "재활의학": 87, "공단매출": 88},
-        "anpa_row": 36, "biz_name": "서울오리진"
     }
 }
 
@@ -96,14 +88,10 @@ def load_raw_data_only():
     except:
         return pd.DataFrame()
 
-def get_val(df, row, col_map, month_label):
-    col = col_map.get(month_label) # 해당 월의 열 인덱스 가져오기
-    if col is None or pd.isna(col): return 0 # 열이 없으면 0 반환
-    try:
-        v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
-        return (v if pd.notnull(v) else 0) / 1000000
-    except:
-        return 0
+def get_val(df, row, col):
+    if col is None or pd.isna(col): return 0
+    v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
+    return (v if pd.notnull(v) else 0) / 1000000
 
 # --- [시각화 함수] ---
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
