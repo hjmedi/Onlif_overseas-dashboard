@@ -288,13 +288,13 @@ try:
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
         if h_line: st.info(h_line)
         display_metrics(sel_months, sum_s, sum_p)
-        if k in ["르샤인", "오블리브"]:
+        if k in ["르샤인", "오블리브", "서울오리진"]:
             anpa_s = [get_val(dfs[k], conf["anpa_row"], maps[k][m]) for m in sel_months]
             hosp_total_s = [s - a for s, a in zip(sum_s, anpa_s)]
             draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
         else:
             draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
-        if k in ["온리프", "르샤인", "오블리브"]:
+        if k in ["온리프", "르샤인", "오블리브", "서울오리진"]:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
             h_profit = [get_val(dfs[k], conf["병원영익"], maps[k][m]) for m in sel_months]
