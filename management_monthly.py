@@ -97,7 +97,7 @@ def load_raw_data_only():
     except:
         return pd.DataFrame()
 
-def get_val(df, row, col):
+def get_val(df, row, col_map, month_label):
     if col is None or pd.isna(col): return 0
     v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
     return (v if pd.notnull(v) else 0) / 1000000
