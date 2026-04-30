@@ -269,7 +269,7 @@ try:
     start_m, end_m = st.sidebar.select_slider("기간", options=all_months, value=(all_months[0], all_months[-1]), label_visibility="collapsed")
     sel_months = all_months[all_months.index(start_m) : all_months.index(end_m) + 1]
 
-    ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"], m) + 
+        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"], m) + 
               get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"], m) + 
               get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"], m) + 
               get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"], m) for m in sel_months]
