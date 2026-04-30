@@ -268,8 +268,8 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"][m]) for m in sel_months]
-        tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"][m]) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
+        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"], m) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"], m) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"], m) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"], m) for m in sel_months]
+        tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"], m) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"], m) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"], m) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"], m) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"], m) for m in sel_months]
         h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
         if h_line: st.success(h_line)
         display_metrics(sel_months, ts, tp)
@@ -283,8 +283,8 @@ try:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
-        sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k][m]) for m in sel_months]
-        sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k][m]) for m in sel_months]
+        sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k], m) for m in sel_months]
+        sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k], m) for m in sel_months]
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
         if h_line: st.info(h_line)
         display_metrics(sel_months, sum_s, sum_p)
