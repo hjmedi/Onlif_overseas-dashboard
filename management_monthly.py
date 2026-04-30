@@ -115,21 +115,44 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
                 for issue in item_issues: st.write(issue)
 
     fig = go.Figure()
+    
+    # 1. 매출 막대 그래프
     for idx, (label, values) in enumerate(sales_dict.items()):
         if label == "Total": continue
         color = HOSP_ITEM_COLORS[idx % len(HOSP_ITEM_COLORS)] if use_custom_palette else TOTAL_SPLIT_COLORS.get(label, "#E0E0E0")
         fig.add_trace(go.Bar(x=months, y=values, name=label, marker_color=color, marker_line_width=0, opacity=0.85))
 
     total_sales = sales_dict.get("Total", [0]*len(months))
+    
+    # 2. 영업이익 꺾은선
     profit_labels = [f"{p/100:.1f}억<br>({(p/s*100) if s!=0 else 0:.1f}%)" for s, p in zip(total_sales, profit_list)]
     fig.add_trace(go.Scatter(x=months, y=profit_list, name="영업이익", mode="lines+markers+text", 
                              line=dict(color=line_color, width=3.5), marker=dict(size=8, symbol="circle", line=dict(color='white', width=2)),
                              text=profit_labels, textposition="top center", textfont=dict(size=11, color=line_color)))
+    
+    # 3. 매출 총합 텍스트 (막대 위 숫자)
     if "Total" in sales_dict:
         fig.add_trace(go.Scatter(x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
                                  textposition="top center", showlegend=False, hoverinfo='none', textfont=dict(color="#444444", size=11)))
-    fig.update_layout(height=480, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                      yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False), plot_bgcolor="white", hovermode="x unified")
+
+    # --- [평균선 추가 로직] ---
+    if len(months) > 0:
+        avg_sales = sum(total_sales) / len(total_sales)
+        avg_profit = sum(profit_list) / len(profit_list)
+        
+        # 매출 평균선 (Grey 점선)
+        fig.add_hline(y=avg_sales, line_dash="dot", line_color="#7F8C8D", 
+                      annotation_text=f"매출평균: {avg_sales/100:.1f}억", annotation_position="bottom left")
+        
+        # 영업이익 평균선 (지점색 파선)
+        fig.add_hline(y=avg_profit, line_dash="dash", line_color=line_color, 
+                      annotation_text=f"영익평균: {avg_profit/100:.1f}억", annotation_position="top right")
+    # -----------------------
+
+    fig.update_layout(height=480, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', 
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                      yaxis=dict(title="금액 (백만 원)", gridcolor="#F5F5F5"), xaxis=dict(type='category', showgrid=False), 
+                      plot_bgcolor="white", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 def draw_expense_chart(title, months, sales_list, exp_list, exp_label, line_color, bar_color):
