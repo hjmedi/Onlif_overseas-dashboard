@@ -98,9 +98,19 @@ def load_raw_data_only():
         return pd.DataFrame()
 
 def get_val(df, row, col_map, month_label):
-    if col is None or pd.isna(col): return 0
-    v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
-    return (v if pd.notnull(v) else 0) / 1000000
+    # col_map에서 해당 월의 열 인덱스(숫자)를 가져옴
+    col = col_map.get(month_label)
+    
+    # 열 번호(col)가 없거나 비어있으면 0 반환
+    if col is None or pd.isna(col):
+        return 0
+        
+    try:
+        # 데이터프레임에서 값을 읽어옴
+        v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
+        return (v if pd.notnull(v) else 0) / 1000000
+    except:
+        return 0
 
 # --- [시각화 함수] ---
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
@@ -268,9 +278,21 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"], m) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"], m) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"], m) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"], m) for m in sel_months]
-        tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"], m) + get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"], m) + get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"], m) + get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"], m) + get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"], m) for m in sel_months]
-        h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
+        ts = [
+            get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"], m) + 
+            get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"], m) + 
+            get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"], m) + 
+            get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"], m) 
+            for m in sel_months
+        ]
+        tp = [
+            get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"], m) + 
+            get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"], m) + 
+            get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"], m) + 
+            get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"], m) + 
+            get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"], m) 
+            for m in sel_months
+        ]       h_line = generate_headline(sel_months, ts, tp, "그룹 전체"); 
         if h_line: st.success(h_line)
         display_metrics(sel_months, ts, tp)
         draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
