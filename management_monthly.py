@@ -300,8 +300,8 @@ try:
         st.title(f"🚀 {selected_mode} 경영 리포트")
         k = "메디빌더" if selected_mode == "메디빌더" else selected_mode.split()[0]
         conf = CONFIG[k]
-        sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k][m]) for m in sel_months]
-        sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k][m]) for m in sel_months]
+        sum_s = [get_val(dfs[k], (conf["매출"] if k=="메디빌더" else conf["전체매출"]), maps[k], m) for m in sel_months]
+        sum_p = [get_val(dfs[k], (conf["영익"] if k=="메디빌더" else conf["전체영익"]), maps[k], m) for m in sel_months]
         h_line = generate_headline(sel_months, sum_s, sum_p, k)
         if h_line: st.info(h_line)
         display_metrics(sel_months, sum_s, sum_p)
