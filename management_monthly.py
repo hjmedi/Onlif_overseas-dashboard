@@ -97,10 +97,19 @@ def load_raw_data_only():
     except:
         return pd.DataFrame()
 
-def get_val(df, row, col):
-    if col is None or pd.isna(col): return 0
-    v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
-    return (v if pd.notnull(v) else 0) / 1000000
+def get_val(df, row, col_map, month_label):
+    # col_map에서 month_label(예: '25.01')에 해당하는 열 인덱스를 가져옴
+    col = col_map.get(month_label)
+    
+    # 해당 월의 열이 없으면(신규 지점 등) 0 반환
+    if col is None or pd.isna(col): 
+        return 0
+    
+    try:
+        v = pd.to_numeric(df.iloc[row-1, col], errors='coerce')
+        return (v if pd.notnull(v) else 0) / 1000000
+    except:
+        return 0
 
 # --- [시각화 함수] ---
 def draw_performance_chart(title, months, sales_dict, profit_list, line_color, use_custom_palette=False):
