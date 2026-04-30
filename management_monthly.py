@@ -83,7 +83,7 @@ def load_all_data():
             df = pd.read_excel(file_name, sheet_name=conf["sheet"], header=None)
             data_frames[key] = df
             h_row = df.iloc[conf["header"]-1]
-            c_map = {m_l: i for m_l, m_v in months_dict.items() for i, cell in enumerate(h_row) if str(m_v) in str(cell).replace(".0", "")}
+            c_map = {m_l: i for m_l, m_v in months_dict.items() for i, cell in enumerate(h_row) if str(m_v) in str(cell).replace(".0", "").strip()}
             col_maps[key] = c_map
         except: st.error(f"시트 '{conf['sheet']}' 로드 실패")
     return data_frames, col_maps
