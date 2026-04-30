@@ -135,19 +135,23 @@ def draw_performance_chart(title, months, sales_dict, profit_list, line_color, u
         fig.add_trace(go.Scatter(x=months, y=sales_dict["Total"], mode="text", text=[f"{v/100:.1f}억" for v in sales_dict["Total"]], 
                                  textposition="top center", showlegend=False, hoverinfo='none', textfont=dict(color="#444444", size=11)))
 
-    # --- [평균선 추가 로직] ---
+    # --- [평균선 추가 로직: 둘 다 오른쪽 정렬 및 영익률 추가] ---
     if len(months) > 0:
         avg_sales = sum(total_sales) / len(total_sales)
         avg_profit = sum(profit_list) / len(profit_list)
+        # 평균 이익률 계산 (평균 영익 / 평균 매출)
+        avg_ratio = (avg_profit / avg_sales * 100) if avg_sales != 0 else 0
         
-        # 매출 평균선 (Grey 점선)
+        # 1. 매출 평균선 (Grey 점선, 오른쪽 표시)
         fig.add_hline(y=avg_sales, line_dash="dot", line_color="#7F8C8D", 
-                      annotation_text=f"매출평균: {avg_sales/100:.1f}억", annotation_position="bottom left")
+                      annotation_text=f"매출평균: {avg_sales/100:.1f}억", 
+                      annotation_position="top right") # 위치를 오른쪽으로 변경
         
-        # 영업이익 평균선 (지점색 파선)
+        # 2. 영업이익 평균선 (지점색 파선, 오른쪽 표시 + % 포함)
         fig.add_hline(y=avg_profit, line_dash="dash", line_color=line_color, 
-                      annotation_text=f"영익평균: {avg_profit/100:.1f}억", annotation_position="top right")
-    # -----------------------
+                      annotation_text=f"영익평균: {avg_profit/100:.1f}억 ({avg_ratio:.1f}%)", 
+                      annotation_position="bottom right") # 위치를 오른쪽으로 변경
+    # --------------------------------------------------------
 
     fig.update_layout(height=480, margin=dict(l=10,r=10,t=40,b=10), barmode='stack', 
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
