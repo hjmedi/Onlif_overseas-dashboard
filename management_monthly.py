@@ -10,7 +10,7 @@ HOSP_ITEM_COLORS = ["#8ECAE6", "#219EBC", "#457B9D", "#A8DADC", "#F1FAEE"]
 TOTAL_SPLIT_COLORS = {"그룹 매출": "#BDBDBD", "법인 합산": "#D1C4E9", "병원": "#A8DADC", "앤파트너스": "#F4A261"}
 
 CONFIG = {
-    "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 52, "color": "#333333"}, # 영익 51 -> 52 수정
+    "메디빌더": {"sheet": "HQ_실적", "header": 5, "매출": 14, "영익": 52, "color": "#333333"}, # 영익 52로 수정 완료
     "온리프": {
         "sheet": "온리프_실적", "header": 6, 
         "전체매출": 25, "전체영익": 52, "병원매출": 77, "병원영익": 116, "법인매출": 121, "법인영익": 155,
@@ -34,7 +34,7 @@ CONFIG = {
         "anpa_row": 36, "biz_name": "오블리브"
     },
     "서울오리진": {
-        "sheet": "오블리브(오리진)_실적", 
+        "sheet": "오블리브(오리진)_실적", # 엑셀 시트명과 일치 여부 확인 필수
         "header": 6,
         "전체매출": 34, "전체영익": 58, "병원매출": 83, "병원영익": 125, "법인매출": 130, "법인영익": 163,
         "인건비_병원": 38, "인건비_앤파": 46, "의약품비": 39, "상품매입": 42, "광고비": 48,
@@ -76,6 +76,7 @@ def generate_item_headlines(months, item_dict):
 def load_all_data():
     file_name = "(2021-2026) 26년 통합 경영관리_3월 마감_260423.xlsx"
     data_frames, col_maps = {}, {}
+    # 26.03까지 인식하도록 업데이트 완료
     months_dict = {"25.01": "2501", "25.02": "2502", "25.03": "2503", "25.04": "2504", "25.05": "2505", "25.06": "2506", 
                    "25.07": "2507", "25.08": "2508", "25.09": "2509", "25.10": "2510", "25.11": "2511", "25.12": "2512", 
                    "26.01": "2601", "26.02": "2602", "26.03": "2603"}
@@ -160,7 +161,6 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         df = df[(df['Category'] == target_category) & (df['Biz'].str.contains(biz_name, na=False))]
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
-        
         def normalize_vendor(name):
             name = str(name).strip()
             if name.startswith('(주)'): name = name[3:].strip()
@@ -230,7 +230,7 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
             )
     except Exception as e:
         st.info(f"데이터 분석 준비 중... ({e})")
-        
+
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
 selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU", "서울오리진 BU"])
@@ -243,17 +243,17 @@ try:
 
     if selected_mode == "연결 실적(통합)":
         st.title("🌐 그룹 연결 실적 현황")
-        # 매출 합산 (서울오리진 추가)
+        # ts (매출) - 서울오리진 합산
         ts = [get_val(dfs["온리프"], CONFIG["온리프"]["전체매출"], maps["온리프"][m]) + 
               get_val(dfs["르샤인"], CONFIG["르샤인"]["전체매출"], maps["르샤인"][m]) + 
               get_val(dfs["오블리브"], CONFIG["오블리브"]["전체매출"], maps["오블리브"][m]) + 
               get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체매출"], maps["서울오리진"][m]) for m in sel_months]
         
-        # 영업이익 합산 (서울오리진 추가 및 메디빌더 중복 더하기 수정)
+        # tp (영익) - 서울오리진 합산 및 중복 제거 완료
         tp = [get_val(dfs["온리프"], CONFIG["온리프"]["전체영익"], maps["온리프"][m]) + 
               get_val(dfs["르샤인"], CONFIG["르샤인"]["전체영익"], maps["르샤인"][m]) + 
               get_val(dfs["오블리브"], CONFIG["오블리브"]["전체영익"], maps["오블리브"][m]) + 
-              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"][m]) +
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["전체영익"], maps["서울오리진"][m]) + 
               get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
         
         h_line = generate_headline(sel_months, ts, tp, "그룹 전체")
@@ -262,17 +262,17 @@ try:
         draw_performance_chart("📊 전체 연결", sel_months, {"Total": ts, "그룹 매출": ts}, tp, "#1D3557")
         st.divider()
         
-        # 법인 연결 합산 (서울오리진 법인 추가)
+        # cs (법인매출), cp (법인영익) - 서울오리진 추가
         cs = [get_val(dfs["메디빌더"], CONFIG["메디빌더"]["매출"], maps["메디빌더"][m]) + 
               get_val(dfs["온리프"], CONFIG["온리프"]["법인매출"], maps["온리프"][m]) + 
               get_val(dfs["르샤인"], CONFIG["르샤인"]["법인매출"], maps["르샤인"][m]) + 
-              get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) +
+              get_val(dfs["오블리브"], CONFIG["오블리브"]["법인매출"], maps["오블리브"][m]) + 
               get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인매출"], maps["서울오리진"][m]) for m in sel_months]
               
         cp = [get_val(dfs["온리프"], CONFIG["온리프"]["법인영익"], maps["온리프"][m]) + 
               get_val(dfs["르샤인"], CONFIG["르샤인"]["법인영익"], maps["르샤인"][m]) + 
               get_val(dfs["오블리브"], CONFIG["오블리브"]["법인영익"], maps["오블리브"][m]) + 
-              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인영익"], maps["서울오리진"][m]) +
+              get_val(dfs["서울오리진"], CONFIG["서울오리진"]["법인영익"], maps["서울오리진"][m]) + 
               get_val(dfs["메디빌더"], CONFIG["메디빌더"]["영익"], maps["메디빌더"][m]) for m in sel_months]
               
         display_metrics(sel_months, cs, cp)
@@ -292,6 +292,7 @@ try:
             draw_performance_chart(f"📊 {k} 전체 실적 (병원 + 앤파트너스)", sel_months, {"Total": sum_s, "병원": hosp_total_s, "앤파트너스": anpa_s}, sum_p, conf["color"])
         else:
             draw_performance_chart(f"📊 {k} 전체 실적", sel_months, {"Total": sum_s, "전체 매출": sum_s}, sum_p, conf["color"])
+        
         if k in ["온리프", "르샤인", "오블리브", "서울오리진"]:
             st.divider()
             h_total_s = [get_val(dfs[k], conf["병원매출"], maps[k][m]) for m in sel_months]
@@ -302,9 +303,11 @@ try:
                 draw_performance_chart(f"🏥 {k} 의원 센터별 상세 실적", sel_months, h_sales_dict, h_profit, conf["color"], use_custom_palette=True)
             else:
                 draw_performance_chart(f"🏥 {k} 의원 실적", sel_months, {"Total": h_total_s, "병원 매출": h_total_s}, h_profit, conf["color"])
+            
             p_sales = [get_val(dfs[k], conf["법인매출"], maps[k][m]) for m in sel_months]
             p_profit = [get_val(dfs[k], conf["법인영익"], maps[k][m]) for m in sel_months]
             draw_performance_chart(f"🤝 {k} 앤파트너스 실적", sel_months, {"Total": p_sales, "앤파트너스 매출": p_sales}, p_profit, conf["color"])
+            
             st.divider(); st.subheader(f"📑 {k} 5대 핵심 비용 분석")
             c1, c2 = st.columns(2)
             with c1:
@@ -314,6 +317,7 @@ try:
             with c2:
                 draw_expense_chart("② 인건비(앤파) 분석", sel_months, p_sales, [get_val(dfs[k], conf["인건비_앤파"], maps[k][m]) for m in sel_months], "인건비(앤파)", conf["color"], "#A8DADC")
                 draw_expense_chart("④ 상품매입 분석", sel_months, h_total_s, [get_val(dfs[k], conf["상품매입"], maps[k][m]) for m in sel_months], "상품매입", conf["color"], "#F4A261")
+            
             biz_name = conf.get("biz_name", k)
             raw_data = load_raw_data_only()
             display_vendor_analysis_final(raw_data, end_m, biz_name)
