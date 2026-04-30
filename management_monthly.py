@@ -258,7 +258,7 @@ def display_vendor_analysis_final(raw_df, month, biz_name):
         
 # --- 메인 로직 ---
 st.sidebar.header("🔍 경영 실적 필터")
-selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU"])
+selected_mode = st.sidebar.selectbox("🏢 대상 BU 선택", ["연결 실적(통합)", "메디빌더", "온리프 BU", "르샤인 BU", "오블리브 BU", "서울오리진 BU"])
 
 try:
     dfs, maps = load_all_data()
